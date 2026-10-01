@@ -8,9 +8,10 @@ Wasp-os is no longer being actively maintained by its original author. There
 are still some very helpful people floating round the project but new developers
 would still be very welcome.
 
-In particular wasp-os is based on a relatively old verson of Micropython and
-would benefit from a version unlift (this needs skill in both Python and
-embedded C). 
+wasp-os now builds against current upstream MicroPython, but so far only
+for the PineTime: the Colmi P8 and Senbono K9 still need porting to it (this
+needs skill in both Python and embedded C; the PineTime's board definition in
+``wasp/boards/pinetime/micropython`` shows what is needed).
 
 Also needed is a release manager to build, test and issue new releases. Currently
 the binary releases (up to wasp-os-0.4) have been withdrawn because they do not
