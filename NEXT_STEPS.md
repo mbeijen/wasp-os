@@ -19,12 +19,18 @@ it is. Within each section, items are roughly in order of value.
   `__init__()`, an estimated 2–4 KB, then importing fonts lazily (1–1.5 KB).
   Measure each change with the unix-port harness before flashing. The 8 KB
   stack is about right: it peaks at 4.1 KB, plus the SoftDevice's needs.
-- **Touch controller interrupt configuration.** The repeated-gesture problem is
-  handled in software (a latch with a 300 ms fallback). InfiniTime instead
-  writes the CST816S registers `0xFA`, `0xEC` and `0xFB` so that the chip only
-  interrupts on a gesture or state change and doesn't auto-reset. That would
-  fix the problem at the source and probably save power. It needs a hardware
-  test.
+- **Touch release latch fallback.** The CST816S driver now writes `0xFA =
+  0x30` (interrupt on touch state change and on gesture) and `0xFB = 0` (no
+  auto-reset) after every chip reset. Tested on hardware (2026-10-25), only
+  `0x30` makes lifting the finger raise an interrupt: the default and
+  InfiniTime's `0x70` don't. The registers read back as zero, so the writes
+  can't be verified directly. Once swiping has proven reliable in use, drop the
+  300 ms fallback in `get_touch_data()` and rely on the release.
+- **Sliders can't be dragged.** On this PineTime (CST816S firmware version 1)
+  dragging a `Slider` makes the chip report a swipe (gesture 3/4) rather than
+  a stream of touch positions, so e.g. the brightness slider in Settings exits
+  to the clock instead. Tapping a position works. Independent of `0xFA`
+  (tried the default, `0x30` and `0x70`); `0xEC` (motion mask) is untested.
 - **Vibration strength.** Short pulses are 50% now. The old firmware's
   `duty=25` actually drove the motor about 75% of the time; set 75 to get
   exactly that feel back.

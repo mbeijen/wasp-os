@@ -30,6 +30,7 @@ class CST816S:
         self._last_gesture_ms = -1000000
 
         self._reset()
+        self._configure()
         self.tp_int.irq(trigger=Pin.IRQ_FALLING, handler=self.get_touch_data)
 
     def _reset(self):
@@ -37,6 +38,23 @@ class CST816S:
         time.sleep_ms(5)
         self.tp_rst.on()
         time.sleep_ms(50)
+
+    def _configure(self):
+        # The configuration is lost on every reset, so call this after
+        # each one. The registers read back as zero, so there is no way
+        # to check the writes took effect.
+        try:
+            # IrqCtl: pulse the interrupt on a touch state change
+            # (EnChange) and on a gesture (EnMotion). EnChange is what
+            # makes lifting the finger raise an interrupt; tested on
+            # hardware, the default (and InfiniTime's 0x70, which adds
+            # EnTouch) don't report the lift.
+            self.i2c.writeto_mem(21, 0xfa, b'\x30')
+            # AutoReset: don't reset after 5 s without a gesture, which
+            # kills the current touch point
+            self.i2c.writeto_mem(21, 0xfb, b'\x00')
+        except OSError:
+            pass
 
     def version(self):
         self.wake()
@@ -91,7 +109,9 @@ class CST816S:
         # immediately on a genuine observed release (for quick, responsive
         # back-to-back swipes), but reopens after a fixed cooldown
         # regardless, so a release that is never reported can't leave
-        # swiping permanently dead.
+        # swiping permanently dead. _configure() now enables an interrupt
+        # on the release (EnChange), so the latch normally reopens on the
+        # lift; the fallback stays until that has proven itself in use.
         if not touching:
             self._gesture_released = True
 
@@ -141,6 +161,7 @@ class CST816S:
         Just reset the chip in order to wake it up
         """
         self._reset()
+        self._configure()
         self.event[0] = 0
         self._gesture_released = True
 
