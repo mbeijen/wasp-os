@@ -160,3 +160,37 @@ def test_settings(system):
         system.step()
 
     assert(start_point == system.app._current_setting)
+
+def test_settings_slider_drag(system):
+    """Step the brightness slider with swipes along it.
+
+    A swipe along the slider row moves the slider one step in its
+    direction; one elsewhere still navigates away.
+    """
+    app = settings.SettingsApp()
+    system.switch(app)
+    system.step()
+    assert(app._current_setting == 'Brightness')
+
+    wasp.watch.touch.press(10, 110)
+    system.step()
+    assert(system.brightness == 1)
+
+    # The simulator's swipe() reports the last touch coordinates. Its
+    # directions follow the arrow keys, so 'left' is a swipe to the right.
+    wasp.watch.touch.i2c.sim.regs[6] = 110
+    for brightness in (2, 3, 3):
+        wasp.watch.touch.swipe('left')
+        system.step()
+        assert(system.app == app)
+        assert(system.brightness == brightness)
+
+    wasp.watch.touch.swipe('right')
+    system.step()
+    assert(system.app == app)
+    assert(system.brightness == 2)
+
+    wasp.watch.touch.i2c.sim.regs[6] = 200
+    wasp.watch.touch.swipe('left')
+    system.step()
+    assert(system.app != app)

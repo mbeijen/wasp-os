@@ -48,6 +48,7 @@ class SettingsApp():
         self._draw()
         wasp.system.request_event(wasp.EventMask.TOUCH)
         wasp.system.request_event(wasp.EventMask.SWIPE_UPDOWN)
+        wasp.system.request_event(wasp.EventMask.SWIPE_LEFTRIGHT)
 
     def touch(self, event):
         if self._current_setting == 'Brightness':
@@ -76,10 +77,12 @@ class SettingsApp():
         self._update()
 
     def swipe(self, event):
-        """Handle NEXT events by augmenting the default processing by resetting
-        the count if we are not currently timing something.
+        """Handle swipes.
 
-        No other swipe event is possible for this application.
+        Up and down move between settings. A left or right swipe along a
+        slider moves it one step in that direction: the touch controller
+        reports a drag as a swipe. Any other left or right swipe navigates
+        away as usual.
         """
         if event[0] == wasp.EventType.UP:
             self._sett_index += 1
@@ -87,6 +90,21 @@ class SettingsApp():
         elif event[0] == wasp.EventType.DOWN:
             self._sett_index -= 1
             self._draw()
+        elif self._current_setting in ('Brightness', 'Notification Level') \
+                and 60 <= event[2] < 160:
+            # Along the slider row (the knob is drawn at y 90-130). The
+            # swipe is reported close to where it started, so step in its
+            # direction rather than jumping to its position.
+            step = 1 if event[0] == wasp.EventType.RIGHT else -1
+            if self._current_setting == 'Brightness':
+                wasp.system.brightness = min(max(wasp.system.brightness + step, 1), 3)
+                self._slider.value = wasp.system.brightness - 1
+            else:
+                wasp.system.notify_level = min(max(wasp.system.notify_level + step, 1), 3)
+                self._nfy_slider.value = wasp.system.notify_level - 1
+            self._update()
+        else:
+            return True
 
     def _draw(self):
         """Redraw the display from scratch."""

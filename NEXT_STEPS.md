@@ -26,13 +26,6 @@ it is. Within each section, items are roughly in order of value.
   InfiniTime's `0x70` don't. The registers read back as zero, so the writes
   can't be verified directly. Once swiping has proven reliable in use, drop the
   300 ms fallback in `get_touch_data()` and rely on the release.
-- **Dragging sliders in Settings.** A `Slider` is tap-to-set by design: its
-  `touch()` snaps the tapped x position to a step, and nothing follows a moving
-  finger (as upstream). A drag across one is a horizontal swipe, which Settings
-  doesn't subscribe to, so the system navigates back to the clock. To support
-  it, Settings could request `SWIPE_LEFTRIGHT` and set a slider from a swipe
-  that starts on its row; the chip only reports where the swipe ended, so the
-  knob would jump there rather than track the finger.
 - **Vibration strength.** Short pulses are 50% now. The old firmware's
   `duty=25` actually drove the motor about 75% of the time; set 75 to get
   exactly that feel back.
