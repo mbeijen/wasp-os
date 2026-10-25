@@ -19,9 +19,6 @@ it is. Within each section, items are roughly in order of value.
   `__init__()`, an estimated 2–4 KB, then importing fonts lazily (1–1.5 KB).
   Measure each change with the unix-port harness before flashing. The 8 KB
   stack is about right: it peaks at 4.1 KB, plus the SoftDevice's needs.
-- **`Battery.voltage_mv()` cache bug.** The "clear on charging" branch rebinds a
-  local instead of `self._cache`, so the cache is never cleared (the same
-  rebind happens two lines later). A two-line fix.
 - **Touch controller interrupt configuration.** The repeated-gesture problem is
   handled in software (a latch with a 300 ms fallback). InfiniTime instead
   writes the CST816S registers `0xFA`, `0xEC` and `0xFB` so that the chip only
