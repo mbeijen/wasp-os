@@ -6,13 +6,11 @@ it is. Within each section, items are roughly in order of value.
 
 ## Waiting on others
 
-- **MicroPython PRs** #19729 (frozen native code), #19731 (PWM allocation) and
-  #19733 (ADC `sample_ns`) are open, with no review yet. When one merges, drop
-  its commits from `mbeijen/micropython` `pinetime-wasp-os-fixes`; when all
-  three have, point the `micropython` submodule at upstream itself.
-- **Rebase the micropython fork** onto upstream master when a PR merges or
-  something relevant lands. Upstream is 20 commits ahead, none of them in the
-  nrf port.
+- **MicroPython v1.30.0.** PRs #19729 (frozen native code), #19731 (PWM
+  allocation) and #19733 (ADC `sample_ns`) were merged on 2026-10-10, so the
+  `micropython` submodule now points at upstream master itself, with no fork.
+  They are targeted for v1.30.0, scheduled for December; move the submodule to
+  that tag once it is out.
 
 ## Firmware
 
