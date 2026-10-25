@@ -112,8 +112,11 @@ class CST816S:
         # swiping permanently dead. _configure() now enables an interrupt
         # on the release (EnChange), so the latch normally reopens on the
         # lift; the fallback stays until that has proven itself in use.
-        if not touching:
+        # That lift is reported as a plain touch (code 5) where the finger
+        # left the screen, which must not reach the app as a tap.
+        if not touching and not self._gesture_released:
             self._gesture_released = True
+            return
 
         if 0 < raw < 5:
             if not touching:
