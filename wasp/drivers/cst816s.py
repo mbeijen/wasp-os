@@ -84,9 +84,9 @@ class CST816S:
         # dbuf[0]'s gesture code.
         touching = (dbuf[1] & 0x0f) > 0
 
-        # Directional swipe (event codes 1-4; 5 is a plain touch/drag,
-        # never gated since e.g. dragging a Slider needs a fresh
-        # coordinate on every sample). The CST816S's on-chip gesture
+        # Directional swipe (event codes 1-4; 5 is a plain touch, never
+        # gated since it carries the position apps act on, e.g. where a
+        # Slider was tapped). The CST816S's on-chip gesture
         # recognizer does not report a slide exactly once per physical
         # swipe: confirmed on real hardware, during a single continuous
         # drag it keeps reporting a gesture code -- and can even alternate
