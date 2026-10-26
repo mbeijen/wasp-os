@@ -27,6 +27,7 @@ class Pin(object):
         self._id = id
         self._value = 0
         self._quiet = quiet
+        self._handler = None
 
         # Update the pin registry
         self.pins[id] = self
@@ -44,7 +45,9 @@ class Pin(object):
         self.value(0)
 
     def raise_irq(self):
-        self._handler(self)
+        # Like a real pin, ignore the interrupt until a handler is set
+        if self._handler:
+            self._handler(self)
 
     def value(self, v=None):
         if v is None:
