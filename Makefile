@@ -78,7 +78,8 @@ micropython: build-$(BOARD_SAFE) wasp/boards/manifest_user_apps.py wasp/boards/$
 		--application micropython/ports/nrf/build-$(BOARD)-s132/firmware.hex \
 		build-$(BOARD)/micropython.zip
 
-wasp/boards/manifest_user_apps.py: wasp.toml
+# Regenerate when an app changes too: the build uses copies in wasp/apps/user
+wasp/boards/manifest_user_apps.py: wasp.toml $(wildcard apps/*.py watch_faces/*.py)
 	$(RM) -r \
 		wasp/apps/user \
 		wasp/boards/manifest_user_apps.py \
