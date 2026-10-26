@@ -176,6 +176,10 @@ Watch faces:
    :alt: Digital clock application with week day running on the wasp-os simulator
    :width: 179
 
+.. image:: res/screenshots/DutchClockApp.png
+   :alt: Digital clock application with Dutch week day running on the wasp-os simulator
+   :width: 179
+
 .. image:: res/screenshots/ChronoApp.png
    :alt: Analogue clock application running in the wasp-os simulator
    :width: 179

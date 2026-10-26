@@ -21,6 +21,8 @@ Watch faces
 
 .. automodule:: week_clock
 
+.. automodule:: dutch_clock
+
 .. automodule:: word_clock
 
 .. automodule:: resistor_clock

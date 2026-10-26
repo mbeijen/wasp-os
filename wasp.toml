@@ -35,5 +35,8 @@ file = 'watch_faces/clock.py'
 file = 'watch_faces/week_clock.py'
 default = true
 
+[[watchface]] # Requires ClockApp to also be installed
+file = 'watch_faces/dutch_clock.py'
+
 [[watchface]]
 file = 'watch_faces/chrono.py'
