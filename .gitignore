@@ -17,3 +17,7 @@ wasp/appregistry.py
 
 # uv-managed virtualenv
 /.venv/
+
+# Saved by the Alarm and Morse apps when they run in the simulator
+/alarms.txt
+/Morse.txt
