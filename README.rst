@@ -285,6 +285,10 @@ Other apps: (The "blank" white screenshot is a flashlight app)
    :alt: Gallery application running on the wasp-os simulator
    :width: 179
 
+.. image:: res/screenshots/GuidoApp.png
+   :alt: Blocky portrait of Guido van Rossum in the Guido application on the wasp-os simulator
+   :width: 179
+
 .. image:: res/screenshots/HeartApp.png
    :alt: Heart rate application running on the wasp-os simulator
    :width: 179

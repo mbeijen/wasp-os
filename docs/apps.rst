@@ -59,6 +59,8 @@ Applications
 
 .. automodule:: gallery
 
+.. automodule:: guido
+
 .. automodule:: haiku
 
 .. automodule:: heart
