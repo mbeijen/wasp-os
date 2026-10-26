@@ -180,6 +180,10 @@ Watch faces:
    :alt: Digital clock application with Dutch week day running on the wasp-os simulator
    :width: 179
 
+.. image:: res/screenshots/PixelClockApp.png
+   :alt: Pixel clock with Unix epoch counter running on the wasp-os simulator
+   :width: 179
+
 .. image:: res/screenshots/ChronoApp.png
    :alt: Analogue clock application running in the wasp-os simulator
    :width: 179
