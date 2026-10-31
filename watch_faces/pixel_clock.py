@@ -5,7 +5,9 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Shows a time (as HH:MM), the date (as YYYY-MM-DD) and the Unix epoch, all
-in a blocky 8-bit style, together with a battery meter.
+in a blocky 8-bit style. Like in an 8-bit game, the step count is the score
+at the top left and the battery is three lives at the top right, in quarter
+hearts. Below half a heart, the remaining heart blinks.
 
 The watch only keeps local time, so the epoch assumes Dutch time: UTC+1,
 and UTC+2 from the last Sunday of March to the last Sunday of October.
@@ -31,6 +33,20 @@ GLYPHS = (
     b'\x1e\x33\x33\x1f\x03\x06\x1c'  # 9
     b'\x00\x00\x00\x1e\x00\x00\x00'  # -
 )
+
+# A heart: o is the border, r the inside, which empties from the right
+HEART = (
+    '.ooo..ooo.',
+    'orrroorrro',
+    'orrrrrrrro',
+    'orrrrrrrro',
+    '.orrrrrro.',
+    '..orrrro..',
+    '...orro...',
+    '....oo....',
+)
+GREY = 0x8410
+RED = 0xf800
 
 def _days(y, m, d):
     """Days since 1970-01-01 (Howard Hinnant's days_from_civil)."""
@@ -64,13 +80,20 @@ def epoch(now):
     return ((_days(now[0], now[1], now[2]) * 24 + now[3] - utc_offset(now))
             * 60 + now[4]) * 60 + now[5]
 
+def _colour(ch, col, quarters):
+    """The colour of one pixel of a heart."""
+    if ch == 'o':
+        return GREY
+    if ch == 'r' and col <= quarters * 2:
+        return RED
+    return 0
+
 class PixelClockApp():
     """Pixel clock application."""
     NAME = 'Pixel'
 
     def foreground(self):
         """Activate the application."""
-        wasp.system.bar.clock = False
         self._draw(True)
         wasp.system.request_tick(1000)
 
@@ -88,7 +111,6 @@ class PixelClockApp():
 
     def preview(self):
         """Provide a preview for the watch face selection."""
-        wasp.system.bar.clock = False
         self._draw(True)
 
     def _glyph(self, c, x, y, scale, fg):
@@ -113,6 +135,39 @@ class PixelClockApp():
             if not old or s[i] != old[i]:
                 self._glyph(s[i], x + i * 7 * scale, y, scale, fg)
 
+    def _heart(self, x, y, quarters):
+        """Draw one heart, filled for the given number of quarters."""
+        draw = wasp.watch.drawable
+        for row in range(8):
+            line = HEART[row]
+            col = 0
+            while col < 10:
+                c = _colour(line[col], col, quarters)
+                run = 1
+                while (col + run < 10 and
+                       _colour(line[col + run], col + run, quarters) == c):
+                    run += 1
+                draw.fill(c, x + col * 3, y + row * 3, run * 3, 3)
+                col += run
+
+    def _lives(self):
+        """Draw the battery as three hearts, blinking when nearly empty."""
+        level = wasp.watch.battery.level()
+        quarters = (level * 12 + 50) // 100
+        # Below half a heart, the remaining heart blinks, except while charging
+        blank = (level * 6 < 100 and not wasp.watch.battery.charging()
+                 and not self._blank)
+        self._blank = blank
+        if (quarters, blank) == self._hearts:
+            return
+        self._hearts = (quarters, blank)
+        for i in range(3):
+            x = 134 + i * 34
+            if i == 0 and blank:
+                wasp.watch.drawable.fill(0, x, 8, 30, 24)
+            else:
+                self._heart(x, 8, min(max(quarters - 4 * i, 0), 4))
+
     def _draw(self, redraw=False):
         """Draw or lazily update the display."""
         draw = wasp.watch.drawable
@@ -122,32 +177,39 @@ class PixelClockApp():
 
         if redraw:
             draw.fill()
-            wasp.system.bar.draw()
             # The colon, two blocks as wide as a stroke, centred between
             # the hours and the minutes
-            draw.fill(lo, 113, 67, 14, 14)
-            draw.fill(lo, 113, 88, 14, 14)
+            draw.fill(lo, 113, 99, 14, 14)
+            draw.fill(lo, 113, 120, 14, 14)
             self._hhmm = self._date = self._epoch = None
-        else:
-            wasp.system.bar.update()
+            self._score = self._hearts = None
+            self._blank = False
+
+        score = '{:05d}'.format(wasp.watch.accel.steps)
+        if self._score and len(score) != len(self._score):
+            self._score = None
+        self._text(score, self._score, 8, 10, 3, hi)
+        self._score = score
+
+        self._lives()
 
         now = wasp.watch.rtc.get_localtime()
 
         hhmm = '{:02d}{:02d}'.format(now[3], now[4])
         if hhmm != self._hhmm:
             self._text(hhmm[:2], self._hhmm and self._hhmm[:2],
-                       8, 60, 7, hi)
+                       8, 92, 7, hi)
             self._text(hhmm[2:], self._hhmm and self._hhmm[2:],
-                       141, 60, 7, hi)
+                       141, 92, 7, hi)
             self._hhmm = hhmm
 
         date = '{}-{:02d}-{:02d}'.format(now[0], now[1], now[2])
         if date != self._date:
-            self._text(date, self._date, 16, 135, 3, dim)
+            self._text(date, self._date, 16, 164, 3, dim)
             self._date = date
 
         e = str(epoch(now))
         if self._epoch and len(e) != len(self._epoch):
             self._epoch = None
-        self._text(e, self._epoch, 16, 180, 3, dim)
+        self._text(e, self._epoch, 16, 198, 3, dim)
         self._epoch = e
