@@ -4,12 +4,6 @@
 [submodule "micropython"]
 	path = micropython
 	url = https://github.com/micropython/micropython
-[submodule "tools/pynus"]
-	path = tools/pynus
-	url = https://github.com/wasp-os/pynus
-[submodule "tools/ota-dfu"]
-	path = tools/ota-dfu
-	url = https://github.com/mbeijen/ota-dfu-python
 [submodule "reloader"]
 	path = reloader
 	url = https://github.com/wasp-os/wasp-reloader
