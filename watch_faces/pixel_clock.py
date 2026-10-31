@@ -7,7 +7,8 @@
 Shows a time (as HH:MM), the date (as YYYY-MM-DD) and the Unix epoch, all
 in a blocky 8-bit style. Like in an 8-bit game, the step count is the score
 at the top left and the battery is three lives at the top right, in quarter
-hearts. Below half a heart, the remaining heart blinks.
+hearts. Below half a heart, the remaining heart blinks. While charging,
+the hearts turn blue and keep filling up from the charge level to full.
 
 The watch only keeps local time, so the epoch assumes Dutch time: UTC+1,
 and UTC+2 from the last Sunday of March to the last Sunday of October.
@@ -47,6 +48,7 @@ HEART = (
 )
 GREY = 0x8410
 RED = 0xf800
+BLUE = 0x34df
 
 def _days(y, m, d):
     """Days since 1970-01-01 (Howard Hinnant's days_from_civil)."""
@@ -80,12 +82,12 @@ def epoch(now):
     return ((_days(now[0], now[1], now[2]) * 24 + now[3] - utc_offset(now))
             * 60 + now[4]) * 60 + now[5]
 
-def _colour(ch, col, quarters):
+def _colour(ch, col, quarters, fill):
     """The colour of one pixel of a heart."""
     if ch == 'o':
         return GREY
     if ch == 'r' and col <= quarters * 2:
-        return RED
+        return fill
     return 0
 
 class PixelClockApp():
@@ -94,8 +96,9 @@ class PixelClockApp():
 
     def foreground(self):
         """Activate the application."""
+        # The tick is set by _lives: faster while charging, to animate
+        self._period = None
         self._draw(True)
-        wasp.system.request_tick(1000)
 
     def sleep(self):
         """Prepare to enter the low power mode."""
@@ -111,6 +114,8 @@ class PixelClockApp():
 
     def preview(self):
         """Provide a preview for the watch face selection."""
+        # Leave the tick to the watch face selection
+        self._period = False
         self._draw(True)
 
     def _glyph(self, c, x, y, scale, fg):
@@ -135,17 +140,18 @@ class PixelClockApp():
             if not old or s[i] != old[i]:
                 self._glyph(s[i], x + i * 7 * scale, y, scale, fg)
 
-    def _heart(self, x, y, quarters):
+    def _heart(self, x, y, quarters, fill):
         """Draw one heart, filled for the given number of quarters."""
         draw = wasp.watch.drawable
         for row in range(8):
             line = HEART[row]
             col = 0
             while col < 10:
-                c = _colour(line[col], col, quarters)
+                c = _colour(line[col], col, quarters, fill)
                 run = 1
                 while (col + run < 10 and
-                       _colour(line[col + run], col + run, quarters) == c):
+                       _colour(line[col + run], col + run, quarters,
+                               fill) == c):
                     run += 1
                 draw.fill(c, x + col * 3, y + row * 3, run * 3, 3)
                 col += run
@@ -154,19 +160,41 @@ class PixelClockApp():
         """Draw the battery as three hearts, blinking when nearly empty."""
         level = wasp.watch.battery.level()
         quarters = (level * 12 + 50) // 100
+        charging = wasp.watch.battery.charging()
+
+        if self._period is not False:
+            period = 250 if charging else 1000
+            if period != self._period:
+                self._period = period
+                wasp.system.request_tick(period)
+
+        if charging:
+            # Fill up from the charge level to full, a quarter every
+            # tick, over and over (from empty when it is full already)
+            start = quarters if quarters < 12 else 0
+            fill = self._fill
+            if fill is None or fill < start or fill >= 12:
+                fill = start
+            else:
+                fill += 1
+            self._fill = quarters = fill
+            colour = BLUE
+        else:
+            self._fill = None
+            colour = RED
+
         # Below half a heart, the remaining heart blinks, except while charging
-        blank = (level * 6 < 100 and not wasp.watch.battery.charging()
-                 and not self._blank)
+        blank = level * 6 < 100 and not charging and not self._blank
         self._blank = blank
-        if (quarters, blank) == self._hearts:
+        if (quarters, blank, colour) == self._hearts:
             return
-        self._hearts = (quarters, blank)
+        self._hearts = (quarters, blank, colour)
         for i in range(3):
             x = 134 + i * 34
             if i == 0 and blank:
                 wasp.watch.drawable.fill(0, x, 8, 30, 24)
             else:
-                self._heart(x, 8, min(max(quarters - 4 * i, 0), 4))
+                self._heart(x, 8, min(max(quarters - 4 * i, 0), 4), colour)
 
     def _draw(self, redraw=False):
         """Draw or lazily update the display."""
@@ -182,7 +210,7 @@ class PixelClockApp():
             draw.fill(lo, 113, 99, 14, 14)
             draw.fill(lo, 113, 120, 14, 14)
             self._hhmm = self._date = self._epoch = None
-            self._score = self._hearts = None
+            self._score = self._hearts = self._fill = None
             self._blank = False
 
         score = '{:05d}'.format(wasp.watch.accel.steps)
