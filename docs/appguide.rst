@@ -298,24 +298,25 @@ your application without permanently stored on the device.
 Providing there is enough available RAM then this can lead to a very quick
 edit-test cycles.
 
-Try:
+Try (with :ref:`wasptool<Main OS wasptool>` installed):
 
 .. code-block:: sh
 
-    sh$ tools/wasptool \\
-            --exec myapp.py \\
-            --eval "wasp.system.register(MyApp())"
-    Preparing to run myapp.py:
-    [##################################################] 100%
+    sh$ wasptool exec myapp.py
+    sh$ wasptool eval "wasp.system.register(MyApp())"
+
+Code run this way stays in the REPL's global namespace, so the second command
+can use what the first one defined.
 
 Like the simulator, when an application is registered it is added to the
 launcher and it does not start automatically.
 
 .. note::
 
-    If the progress bar jams at the same point each time then it is likely your
-    application is too large to be compiled on the target. You may have to
-    adopt the frozen module approach from the next section.
+    If ``wasptool exec`` fails with a ``MemoryError`` then it is likely your
+    application is too large to be compiled on the target. ``wasptool exec``
+    sends the file one top-level class at a time to help with this, but you
+    may have to adopt the frozen module approach from the next section.
 
 To remove the application simply reboot the watch by pressing and
 holding the physical button until the watch enters OTA mode (this
@@ -342,9 +343,7 @@ To copy your application to the external FLASH try:
 
 .. code-block:: sh
 
-    sh$ ./tools/wasptool --upload myapp.py
-    Uploading myapp.py:
-    [##################################################] 100%
+    sh$ wasptool push myapp.py
 
 At this point your application is stored on the external FLASH but it will
 not automatically be loaded. This requires you to update the ``main.py`` file
@@ -367,9 +366,7 @@ to the watch:
 
 .. code-block:: sh
 
-    sh$ ./tools/wasptool --upload wasp/main.py
-    Uploading wasp/main.py:
-    [##################################################] 100%
+    sh$ wasptool push wasp/main.py main.py
 
 .. note::
 
@@ -397,9 +394,7 @@ To copy the binary to the wasp-os filesystem try:
 
 .. code-block:: sh
 
-    sh$ ./tools/wasptool --binary --upload myapp.mpy
-    Uploading myapp.mpy:
-    [##################################################] 100%
+    sh$ wasptool push myapp.mpy
 
 At this point your application is stored on the external FLASH but it will
 not automatically be loaded but it can be imported using ``import myapp``.
@@ -426,16 +421,15 @@ To freeze your app into the wasp-os binary add it to the wasp.toml file.
 
     In many cases it is possible to avoid rebuilding the binary in order to
     test new features by directly parsing the code in the global
-    namespace (e.g. using ``wasptool --exec`` rather than ``wasptool --upload``
+    namespace (e.g. using ``wasptool exec`` rather than ``wasptool push``
     combined with ``import``). With the code in the global namespace it can
     then be patched into the system. For example the following can be used
     to adopt a new version of the CST816S driver:
 
     .. code-block:: sh
 
-        ./tools/wasptool\
-            --exec wasp/drivers/cst816s.py\
-            --eval "watch.touch = CST816S(watch.i2c)"`
+        wasptool exec wasp/drivers/cst816s.py
+        wasptool eval "watch.touch = CST816S(watch.i2c)"
 
 Auto loading applications in flash
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -449,18 +443,13 @@ To automatically have your uploaded application added to the software:
 
 .. code-block:: sh
 
-    sh$ ./tools/wasptool --binary --upload myapp.mpy --as apps/myapp.mpy
-    Uploading apps/myapp.mpy:
-    [##################################################] 100%
+    sh$ wasptool push myapp.mpy apps/myapp.mpy
 
 To delete a file from the device:
 
 .. code-block:: sh
 
-    sh$ ./tools/wasptool --console
-    >>>import os
-    >>>os.remove("apps/myapp.mpy")
-    >>>del os
+    sh$ wasptool eval "import os; os.remove('apps/myapp.mpy')"
 
 Application entry points
 ------------------------

@@ -67,9 +67,9 @@ colors = (
     )
 
 class Hack:
-    """wasptool uses class (starting in column 0) as a clue for chunk at a
-    time transmission. Hence we use fake classes to demark places it is safe
-    to split an evaluation.
+    """wasptool exec uses class (starting in column 0) as a clue for chunk
+    at a time transmission. Hence we use fake classes to demark places it is
+    safe to split an evaluation.
     """
     pass
 

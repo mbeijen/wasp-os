@@ -62,24 +62,23 @@ together with a date and a battery meter. When the watch goes into power
 saving mode you can use the button to wake it again.
 
 At this point you will also be able to use the Nordic UART Service to
-access the MicroPython REPL. You can use ``tools/wasptool --console``
-to access the MicroPython REPL.
+access the MicroPython REPL. On GNU/Linux, macOS or Windows, install
+``wasptool`` (``uv tool install ./tools/wasptool``) and use
+``wasptool console`` to access the MicroPython REPL.
 
-To set the time and restart the main application:
+To set the time from the REPL:
 
 .. code-block:: python
 
-   ^C
    watch.rtc.set_localtime((yyyy, mm, dd, HH, MM, SS))
-   wasp.system.run()
 
-Or, if you have a suitable GNU/Linux workstation, just use:
+Or, with wasptool, just use:
 
 .. code-block:: sh
 
-   ./tools/wasptool --rtc
+   wasptool rtc set
 
-which can run these commands automatically.
+which sets the watch to your computer's time.
 
 As mentioned above there are many drivers and features still to be
 developed, see the :ref:`Roadmap` for current status.

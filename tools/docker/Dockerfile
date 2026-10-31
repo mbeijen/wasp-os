@@ -31,12 +31,8 @@ RUN apt-get update && apt-get install --assume-yes --no-install-recommends \
         # TODO: Do version pinning?
         gcc \
         gcc-arm-none-eabi \
-        gir1.2-gtk-4.0 \
         git \
         graphviz \
-        libcairo2-dev \
-        libdbus-1-dev \
-        libgirepository-2.0-dev \
         libnewlib-arm-none-eabi \
         make \
         pkg-config \

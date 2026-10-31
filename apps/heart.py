@@ -18,7 +18,7 @@ watch UI and then run the following command via wasptool:
 
 .. code-block:: sh
 
-    ./tools/wasptool --eval 'wasp.system.app.debug = True'
+    wasptool eval 'wasp.system.app.debug = True'
 
 Once debug has been enabled then the watch will automatically log heart
 rate data whenever the heart rate application is running (and only
@@ -29,7 +29,7 @@ Finally to download the logs for analysis try:
 
 .. code-block:: sh
 
-    ./tools/wasptool --pull hrs.data
+    wasptool pull hrs.data
 """
 
 import wasp

@@ -22,7 +22,7 @@ And to upload:
 
 .. code-block:: sh
 
-    ./tools/wasptool --binary --upload my_image.bmp --as gallery/my_image
+    wasptool push my_image.bmp gallery/my_image
 """
 
 import wasp

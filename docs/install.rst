@@ -27,15 +27,16 @@ simulator and its tests. Run ``make`` through uv so that it uses that
 environment, for example ``uv run make -j`nproc` BOARD=pinetime all`` or
 ``uv run make check``.
 
-Talking to a watch over Bluetooth (``tools/wasptool``, OTA updates) needs two
-extra modules that build against system libraries, so install their
-development packages first and then add the ``ble`` group. On Debian or
-Ubuntu:
+Talking to a watch over Bluetooth (OTA updates, the console, setting the
+time) uses ``wasptool``, which is a separate package with its own
+environment. Install it as a command with:
 
 .. code-block:: sh
 
-    sudo apt install libdbus-1-dev libgirepository-2.0-dev libcairo2-dev pkg-config
-    uv sync --group ble
+    uv tool install ./tools/wasptool
+
+It runs on GNU/Linux, macOS and Windows, and needs no system libraries;
+see ``tools/wasptool/README.md`` for everything it can do.
 
 To regenerate the documentation add the ``docs`` group and install graphviz:
 
@@ -83,7 +84,7 @@ container from it.  The Docker container runs BASH from the project's root path
 and all ``make`` commands should be usable from this shell, including ``make
 sim`` and ``make check``.
 
-Some commands that interact with Bluetooth, such as ``wasptool``, require that
+Commands that interact with Bluetooth, such as ``wasptool``, require that
 Bluetooth is enabled in the host OS.  Bluetooth devices will then be accessible
 from within the Docker container.
 
@@ -133,7 +134,7 @@ currently builds for (see :ref:`Device Support`):
 The output is stored in ``build-pinetime/``:
 
 * ``micropython.zip``: the main OS image, installed over the air (see
-  :ref:`wasptool for GNU/Linux`)
+  :ref:`wasptool<Main OS wasptool>`)
 * ``bootloader.hex`` and ``bootloader-daflasher.zip``: the wasp-bootloader
 * ``reloader*.zip``: the reloader, used to install or update the bootloader
   over the air
@@ -566,32 +567,28 @@ To install the main firmware using DaFlasher for Android:
 * When the upload is complete the watch will reboot and launch the digital
   clock application.
 
-.. _wasptool for GNU/Linux:
+.. _Main OS wasptool:
 
-wasptool for GNU/Linux
-~~~~~~~~~~~~~~~~~~~~~~
+wasptool (GNU/Linux, macOS, Windows)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To install the main firmware from a GNU/Linux workstation, set up the ``ble``
-environment (``uv sync --group ble``). If the watch is running wasp-os, one
-command puts it into :ref:`OTA update mode<OTA update mode>` and uploads
+To install the main firmware from a computer, install wasptool (``uv tool
+install ./tools/wasptool``). If the watch is running wasp-os, one command
+puts it into :ref:`OTA update mode<OTA update mode>` and uploads
 ``micropython.zip`` (see :ref:`Building wasp-os from source`):
 
 .. code-block:: sh
 
-    uv run --group ble tools/wasptool --ota build-pinetime/micropython.zip
+    wasptool ota build-pinetime/micropython.zip
 
-A full update takes about three and a half minutes.
+A full update takes a little over three minutes. If the watch is already in
+OTA update mode (it advertises as *PineDFU*), the same command finds it there
+and goes straight to the upload. With more than one watch around, pick one
+with ``--device`` and its name or Bluetooth address (``wasptool scan`` lists
+them).
 
-If the watch is already in OTA update mode, use ota-dfu directly with the
-watch's Bluetooth address (``bluetoothctl scan le`` lists it; the bootloader
-advertises as *PineDFU*):
-
-.. code-block:: sh
-
-    uv run --group ble tools/ota-dfu/dfu.py --legacy \
-      -z build-pinetime/micropython.zip -a A0:B1:C2:D3:E3:F5
-
-Both exit with a non-zero status if the update fails.
+wasptool exits with a non-zero status if the update fails. A failed update
+leaves the watch in OTA update mode, so you can simply try again.
 
 .. _Troubleshooting:
 
@@ -694,7 +691,7 @@ these will be executed to boot the watch:
 One of the most powerful troubleshooting techniques (and one that is usually
 effective in debugging "black screen" issues) is to switch to safe mode and
 run the contents of ``main.py`` by hand using a bluetooth console (typically
-either ``wasptool --console`` or an Android tool such as Serial Bluetooth
+either ``wasptool console`` or an Android tool such as Serial Bluetooth
 Terminal). Either the watch will start running when started by hand or it will
 issue diagnostics via the console which can be captured and shared via the
 `issue tracker <https://github.com/wasp-os/wasp-os/issues>`_.
@@ -715,7 +712,7 @@ to upload a new version:
 
 .. code-block:: sh
 
-   tools/wasptool --upload wasp/main.py
+   wasptool push wasp/main.py main.py
 
 .. note::
 
