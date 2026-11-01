@@ -30,10 +30,12 @@ Finally to download the logs for analysis try:
 .. code-block:: sh
 
     wasptool pull hrs.data
+
+The log holds the raw samples, eight per second, in blocks of 30 seconds;
+``tools/hrs2csv.py`` turns it into a CSV file.
 """
 
 import wasp
-import machine
 import ppg
 
 class HeartApp():
@@ -53,10 +55,11 @@ class HeartApp():
         draw = wasp.watch.drawable
         draw.fill()
         draw.set_color(wasp.system.theme('bright'))
-        draw.string('PPG graph', 0, 6, width=240)
+        draw.string('Measuring...', 0, 6, width=240)
 
         wasp.system.request_tick(1000 // 8)
 
+        self._bpm = None
         self._hrdata = ppg.PPG(wasp.watch.hrs.read_hrs())
         if self._debug:
             self._hrdata.enable_debug()
@@ -66,57 +69,45 @@ class HeartApp():
         wasp.watch.hrs.disable()
         self._hrdata = None
 
-    def _subtick(self, ticks):
-        """Notify the application that its periodic tick is due."""
+    def tick(self, ticks):
+        """Take a sample at each tick, eight times a second.
+
+        If ticks were missed, the sample is repeated for each, to keep
+        the timing of the signal right.
+        """
         draw = wasp.watch.drawable
+        hrs = wasp.watch.hrs
+        spl = hrs.read_hrs()
+        als = hrs.read_als()
+        for _ in range(ticks):
+            y = self._hrdata.preprocess(spl, als)
+        wasp.system.keep_awake()
 
-        spl = self._hrdata.preprocess(wasp.watch.hrs.read_hrs())
-
-        if len(self._hrdata.data) >= 240:
+        bpm = self._hrdata.get_heart_rate()
+        if bpm != self._bpm:
+            self._bpm = bpm
             draw.set_color(wasp.system.theme('bright'))
-            draw.string('{} bpm'.format(self._hrdata.get_heart_rate()),
+            draw.string('{} bpm'.format(bpm) if bpm else
+                        ('Measuring...' if bpm is None else '- bpm'),
                         0, 6, width=240)
 
         # Graph is orange by default...
         color = wasp.system.theme('spot1')
-
         # If the maths goes wrong lets show it in the chart!
-        if spl > 100 or spl < -100:
+        if y > 100 or y < -100:
             color = 0xffff
-        if spl > 104 or spl < -104:
-            spl = 0
-        spl += 104
-
+        if y > 104 or y < -104:
+            y = 0
+        y += 104
         x = self._x
-        draw.fill(0, x, 32, 1, 208-spl)
-        draw.fill(color, x, 239-spl, 1, spl)
-        if x < 238:
-            draw.fill(0, x+1, 32, 2, 208)
-        x += 2
+        draw.fill(0, x, 32, 3, 208-y)
+        draw.fill(color, x, 239-y, 3, y)
+        if x < 237:
+            draw.fill(0, x+3, 32, 3, 208)
+        x += 3
         if x >= 240:
             x = 0
         self._x = x
-
-    def tick(self, ticks):
-        """This is an outrageous hack but, at present, the RTC can only
-        wake us up every 125ms so we implement sub-ticks using a regular
-        timer to ensure we can read the sensor at 24Hz.
-        """
-        t = machine.Timer(id=1, period=8000000)
-        t.start()
-        self._subtick(1)
-        wasp.system.keep_awake()
-
-        while t.time() < 41666:
-            pass
-        self._subtick(1)
-
-        while t.time() < 83332:
-            pass
-        self._subtick(1)
-
-        t.stop()
-        del t
 
     @property
     def debug(self):

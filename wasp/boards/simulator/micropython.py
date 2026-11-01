@@ -15,7 +15,9 @@ def viper(fn):
         return memoryview(buf).cast('b').cast('H')
 
     def ptr32(buf):
-        return memoryview(buf).cast('b').cast('I')
+        # Viper's ints are signed: only unsigned arrays read as unsigned
+        unsigned = memoryview(buf).format in ('I', 'L')
+        return memoryview(buf).cast('b').cast('I' if unsigned else 'i')
 
     # This is a bit of a hack since the scopes don't exactly match where
     # they would be in micropython but for the simple cases it does mean

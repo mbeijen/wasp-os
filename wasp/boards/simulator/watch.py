@@ -180,15 +180,19 @@ class HRS():
     def read_hrs(self):
         d = self.DATA[self._i]
 
-        self._i += self._step
+        # DATA was recorded at 24 Hz; the Heart app samples at 8 Hz
+        self._i += 3 * self._step
         if self._i >= len(self.DATA):
-            self._i -= 1
+            self._i = len(self.DATA) - 1
             self._step = -1
         elif self._i < 0:
-            self._i += 1
+            self._i = 0
             self._step = 1
 
         return d
+
+    def read_als(self):
+        return 100
 
     def set_drive(self, drive):
         pass

@@ -33,20 +33,22 @@ class HRS3300:
     def init(self):
         w = self.write_reg
 
-        # HRS disabled, 12.5 ms wait time between cycles, (partly) 20mA drive
-        w(_ENABLE, 0x60)
+        # The settings of InfiniTime (src/drivers/Hrs3300.cpp), which its
+        # heart rate algorithm, and so ppg.py, was tuned with.
 
-        # (partly) 20mA drive, power on, "magic" (datasheet says both
-        # "reserved" and "set low nibble to 8" but 0xe gives better results
-        # and is used by at least two other HRS3300 drivers
-        w(_PDRIVER, 0x6e)
+        # HRS disabled, 50 ms wait time between conversions, 12.5 mA drive
+        w(_ENABLE, 0x50)
 
-        # HRS and ALS both in 16-bit mode
-        w(_RES, 0x88)
+        # 12.5 mA drive, power on, and a low nibble of 0xf: the datasheet
+        # says 0x8, but that modulates the LED during the conversion
+        w(_PDRIVER, 0x2f)
 
-        # 64x gain
-        #w(_HGAIN, 0x10)
-        w(_HGAIN, 0x03)
+        # HRS and ALS both in 15-bit mode: about 50 ms per conversion, so
+        # about ten new samples a second
+        w(_RES, 0x77)
+
+        # 1x gain
+        w(_HGAIN, 0x00)
 
     def read_reg(self, addr):
         return self._i2c.readfrom_mem(_I2CADDR, addr, 1)[0]
