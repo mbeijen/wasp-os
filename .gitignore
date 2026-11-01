@@ -23,3 +23,6 @@ wasp/version.py
 /settings.json
 /alarms.txt
 /Morse.txt
+
+# The website, written by tools/publish.py
+/build-site/
