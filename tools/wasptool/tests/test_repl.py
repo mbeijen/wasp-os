@@ -126,3 +126,27 @@ def test_exec_chunks_share_globals():
         repl = await session(FakeWatch())
         return [await repl.exec(c) for c in watch.chunks(source)]
     assert run(go())[-1] == '42\n'
+
+
+def test_info(monkeypatch):
+    import gc
+    battery = types.SimpleNamespace(level=lambda: 80, charging=lambda: 1,
+                                    voltage_mv=lambda: 4010)
+    rtc = types.SimpleNamespace(uptime=3600,
+                                get_localtime=lambda: (2026, 11, 1, 9, 30, 5, 6, 305))
+    fake_wasp = types.SimpleNamespace(watch=types.SimpleNamespace(
+            battery=battery, rtc=rtc, last_hang=(0x521a4, 0x52169, 0x21000026, 5000)))
+    monkeypatch.setitem(__import__('sys').modules, 'wasp', fake_wasp)
+    monkeypatch.setattr(gc, 'mem_free', lambda: 12000, raising=False)
+
+    async def go():
+        fake = FakeWatch()
+        facts = await watch.info(await session(fake))
+        # Every piece is small, so it compiles on a fragmented heap
+        assert max(len(p) for p in watch.INFO) < 200
+        return facts
+    facts = run(go())
+    assert facts['battery'] == 80 and facts['charging'] is True
+    assert facts['time'] == '2026-11-01T09:30:05'
+    assert facts['ram_free'] == 12000
+    assert facts['last_hang'] == (0x521a4, 0x52169, 0x21000026, 5000)

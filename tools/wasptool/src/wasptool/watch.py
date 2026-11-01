@@ -12,36 +12,30 @@ import time
 # bigger is faster, but the watch must hold the code for a piece in RAM
 PIECE = 384
 
-INFO = '''
-def _info():
-    import gc, os, wasp
-    try:
-        from version import VERSION as v
-    except ImportError:
-        v = None
-    try:
-        s = os.statvfs('/flash')
-        f = s[0] * s[4]
-    except OSError:
-        f = None
-    w = wasp.watch
-    u = os.uname()
-    gc.collect()
-    print(repr({
-        'version': v,
-        'board': u.machine,
-        'micropython': u.release,
-        'battery': w.battery.level(),
-        'charging': w.battery.charging(),
-        'voltage_mv': w.battery.voltage_mv(),
-        'uptime': w.rtc.uptime,
-        'time': w.rtc.get_localtime(),
-        'ram_free': gc.mem_free(),
-        'flash_free': f,
-    }))
-_info()
-del _info
-'''
+# Sent as several small pieces: the heap on a watch that has been running
+# for a while is fragmented, and compiling it as one piece needs a larger
+# free block than may be left
+INFO = (
+    'import gc, os, wasp\ngc.collect()',
+    "_i = {'board': os.uname().machine, 'micropython': os.uname().release}",
+    'try:\n'
+    '    from version import VERSION\n'
+    "    _i['version'] = VERSION\n"
+    'except ImportError:\n'
+    "    _i['version'] = None",
+    'try:\n'
+    "    _i['flash_free'] = os.statvfs('/flash')[0] * os.statvfs('/flash')[4]\n"
+    'except OSError:\n'
+    "    _i['flash_free'] = None",
+    "_i['battery'] = wasp.watch.battery.level()\n"
+    "_i['charging'] = wasp.watch.battery.charging()\n"
+    "_i['voltage_mv'] = wasp.watch.battery.voltage_mv()",
+    "_i['uptime'] = wasp.watch.rtc.uptime\n"
+    "_i['time'] = wasp.watch.rtc.get_localtime()",
+    # Where the watch hung before its last watchdog reset (newer firmware)
+    "_i['last_hang'] = getattr(wasp.watch, 'last_hang', None)",
+    "gc.collect()\n_i['ram_free'] = gc.mem_free()\nprint(repr(_i))\ndel _i",
+)
 
 BINASCII = '''
 try:
@@ -53,7 +47,9 @@ except ImportError:
 
 async def info(repl):
     """Facts about the watch, as a dict."""
-    facts = ast.literal_eval(await repl.exec(INFO))
+    for piece in INFO[:-1]:
+        await repl.exec(piece)
+    facts = ast.literal_eval(await repl.exec(INFO[-1]))
     facts['charging'] = bool(facts['charging'])
     t = facts.pop('time')
     facts['time'] = datetime.datetime(*t[:6]).isoformat()
