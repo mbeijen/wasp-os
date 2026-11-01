@@ -28,7 +28,9 @@ wasptool alarm set 7:30 --days weekdays   # add one, or change the one at 7:30
 wasptool alarm unset 7:30           # remove it ("all" removes them all)
 wasptool face                       # the watch faces, * marks the one in use
 wasptool face PixelClock            # use another one
-wasptool ota micropython.zip        # update the firmware
+wasptool update                     # update to the latest build, after asking
+wasptool update --check             # only show what's new
+wasptool ota micropython.zip        # update the firmware from a file
 wasptool push apps/snake.py         # copy a file to the watch
 wasptool pull alarms.txt            # and back
 wasptool eval "print(wasp.watch.battery.voltage_mv())"
@@ -41,6 +43,10 @@ With more than one watch around, pick one with `--device NAME` or
 `--device ADDRESS`. Connecting is retried (`--retries`, 3 by default):
 some radios, especially ones shared with Wi-Fi, fail the first attempt
 now and again.
+
+`update` gets the builds published on https://wasp-os.x14.nl/ (see
+`tools/publish.py`), checks the firmware's sha256 against `releases.json`
+and installs it like `ota`. Use `--url` for another site.
 
 Commands exit with status 0 on success and 1 on failure; `eval` and
 `exec` also exit with 1 when the code raises, with the traceback on

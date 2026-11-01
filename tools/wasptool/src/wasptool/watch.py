@@ -58,6 +58,17 @@ async def info(repl):
     return facts
 
 
+async def version(repl):
+    """The version of wasp-os on the watch, or None if it is too old to say."""
+    return ast.literal_eval(await repl.exec(
+            'try:\n'
+            '    from version import VERSION as _v\n'
+            'except ImportError:\n'
+            '    _v = None\n'
+            'print(repr(_v))\n'
+            'del _v'))
+
+
 async def set_time(repl):
     """Set the watch to the local time of this computer."""
     # The watch only takes whole seconds. Time a round trip, then send the

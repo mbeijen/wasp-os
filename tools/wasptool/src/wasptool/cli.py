@@ -4,6 +4,7 @@
 import argparse
 import asyncio
 import contextlib
+import io
 import json
 import logging
 import os
@@ -12,7 +13,7 @@ import time
 
 from bleak.exc import BleakError
 
-from wasptool import __version__, ble, dfu, watch
+from wasptool import __version__, ble, dfu, releases, watch
 from wasptool.repl import Repl, ReplError
 
 
@@ -273,7 +274,12 @@ async def cmd_reset(args):
 
 
 async def cmd_ota(args):
-    image, init = dfu.read_package(args.file)
+    await _ota(args, args.file)
+
+
+async def _ota(args, package):
+    """Update the firmware from a DFU zip (a path, or a file object)."""
+    image, init = dfu.read_package(package)
     address = None
     try:
         async with session(args, resume=False) as repl:
@@ -300,6 +306,47 @@ async def cmd_ota(args):
     secs = int(time.monotonic() - start)
     print(f'Updated in {secs // 60} min {secs % 60} s: the watch is restarting',
           file=sys.stderr)
+
+
+def _confirm(question):
+    if not sys.stdin.isatty():
+        raise watch.NotAvailable('not updating without asking: '
+                                 'pass --yes to update anyway')
+    return input(question + ' [y/N] ').strip().lower() in ('y', 'yes')
+
+
+async def cmd_update(args):
+    manifest = releases.fetch(args.url)
+    async with session(args) as repl:
+        current = await watch.version(repl)
+        name, address = repl.stream.name, repl.stream.address
+    target = releases.latest(manifest)
+    new = releases.newer(manifest, current)
+    print(f'{name} runs {current or "a version too old to say"}; '
+          f'the latest build is {target["version"]} ({target["date"]})')
+    if not args.force:
+        if current == target['version']:
+            print('The watch is up to date')
+            return
+        if not new:
+            print('The watch runs a newer build: nothing to update')
+            return
+    for r in new:
+        print(f'\n{r["version"]} ({r["date"]})')
+        for line in (r.get('notes') or 'No notes.').splitlines():
+            print('  ' + line)
+    if args.check:
+        return
+    print()
+    if not args.yes and not _confirm(f'Update to {target["version"]}?'):
+        return 1
+
+    data = releases.download(manifest, target)
+    print(f'Downloaded {releases.FIRMWARE} ({len(data) // 1024} KB), '
+          'its sha256 matches', file=sys.stderr)
+    # The watch we just talked to, without scanning again
+    args.device = args.device or address
+    await _ota(args, io.BytesIO(data))
 
 
 def parser():
@@ -393,6 +440,17 @@ def parser():
 
     c = command('ota', cmd_ota, 'update the firmware (micropython.zip)')
     c.add_argument('file')
+
+    c = command('update', cmd_update,
+                'update the firmware to the latest published build')
+    c.add_argument('--check', action='store_true',
+                   help="only show what's new, don't update")
+    c.add_argument('-y', '--yes', action='store_true',
+                   help="don't ask before updating")
+    c.add_argument('--force', action='store_true',
+                   help='install the latest build even if it is not newer')
+    c.add_argument('--url', default=releases.URL,
+                   help=f'where the builds are listed (default: {releases.URL})')
     return p
 
 
@@ -408,6 +466,7 @@ def main(argv=None):
     except KeyboardInterrupt:
         sys.exit(130)
     except (ble.NotFound, ConnectionError, TimeoutError, IOError,
-            BleakError, dfu.DfuError, ReplError, watch.NotAvailable) as e:
+            BleakError, dfu.DfuError, ReplError, watch.NotAvailable,
+            releases.ReleaseError) as e:
         print(f'wasptool: {e}', file=sys.stderr)
         sys.exit(1)
