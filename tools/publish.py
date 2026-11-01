@@ -232,8 +232,13 @@ def main():
     if args.upload:
         # Start from the releases on the server; it may not have any yet
         host_dir = args.upload.rstrip('/')
-        subprocess.run(('rsync', '-t', host_dir + '/releases.json',
-                        manifest_path), cwd=ROOT)
+        fetch = subprocess.run(('rsync', '-t', host_dir + '/releases.json',
+                                manifest_path), cwd=ROOT, text=True,
+                               capture_output=True)
+        if fetch.returncode:
+            if 'No such file' not in fetch.stderr:
+                sys.exit(fetch.stderr)
+            print('There is no releases.json on the server yet')
     try:
         with open(manifest_path) as f:
             manifest = json.load(f)
