@@ -119,6 +119,102 @@ async def cmd_notify(args):
         await watch.notify(repl, args.title, args.body, args.id)
 
 
+DAYS = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
+REPEATS = {'once': 0, 'daily': 0x7f, 'weekdays': 0x1f, 'weekends': 0x60}
+ALARM_ON = 0x80
+
+
+def parse_time(text):
+    """'7:30' as (7, 30)."""
+    try:
+        hour, minute = (int(t) for t in text.split(':'))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f'{text!r} is not a time like 7:30')
+    if not (0 <= hour < 24 and 0 <= minute < 60):
+        raise argparse.ArgumentTypeError(f'{text!r} is not a time of day')
+    return hour, minute
+
+
+def parse_days(text):
+    """'weekdays', or a list like 'mon,wed', as a mask of days."""
+    if text.lower() in REPEATS:
+        return REPEATS[text.lower()]
+    mask = 0
+    for day in text.lower().split(','):
+        found = [i for i, d in enumerate(DAYS)
+                 if len(day) >= 2 and d.lower().startswith(day)]
+        if len(found) != 1:
+            raise argparse.ArgumentTypeError(
+                    f'{day!r} is not a day: use for example mon,wed, '
+                    'or one of ' + ', '.join(REPEATS))
+        mask |= 1 << found[0]
+    return mask
+
+
+def format_days(mask):
+    mask &= 0x7f
+    for name, m in REPEATS.items():
+        if mask == m:
+            return name
+    return ','.join(d for i, d in enumerate(DAYS) if mask & (1 << i))
+
+
+def print_alarms(alarms):
+    if not alarms:
+        print('No alarms')
+    for hour, minute, days in alarms:
+        state = 'on' if days & ALARM_ON else 'off'
+        print(f'{hour:2d}:{minute:02d}  {state:<3}  {format_days(days)}')
+
+
+async def cmd_alarm(args):
+    async with session(args) as repl:
+        alarms = await watch.alarms(repl)
+        if args.action == 'set':
+            days = args.days | (0 if args.off else ALARM_ON)
+            same = [i for i, a in enumerate(alarms) if a[:2] == args.time]
+            if same:
+                alarms[same[0]] = (*args.time, days)
+            elif len(alarms) >= 4:
+                print('The watch has room for four alarms: '
+                      'unset one first', file=sys.stderr)
+                return 1
+            else:
+                alarms.append((*args.time, days))
+        elif args.action == 'unset':
+            if args.time == 'all':
+                kept = []
+            else:
+                time = parse_time(args.time)
+                kept = [a for a in alarms if a[:2] != time]
+                if len(kept) == len(alarms):
+                    print(f'There is no alarm at {args.time}', file=sys.stderr)
+                    return 1
+            alarms = kept
+        if args.action != 'list':
+            await watch.set_alarms(repl, alarms)
+    print_alarms(alarms)
+
+
+def _face_key(name):
+    return name.lower().replace('_', '').replace('-', '').replace(' ', '')
+
+
+async def cmd_face(args):
+    async with session(args) as repl:
+        faces, current = await watch.faces(repl)
+        if args.name:
+            found = [f for f in faces if _face_key(f) == _face_key(args.name)]
+            if not found:
+                print(f'There is no watch face {args.name!r}: choose from '
+                      + ', '.join(faces), file=sys.stderr)
+                return 1
+            await watch.set_face(repl, found[0])
+            current = found[0]
+    for face in faces:
+        print(('* ' if face == current else '  ') + face)
+
+
 async def _run(args, chunks):
     async with session(args) as repl:
         for chunk in chunks:
@@ -243,6 +339,27 @@ def parser():
     c = command('rtc', cmd_rtc, "check the watch's clock, or set it")
     c.add_argument('action', nargs='?', choices=('check', 'set'), default='check')
 
+    c = command('alarm', cmd_alarm, 'show, set or unset alarms')
+    alarm = c.add_subparsers(dest='action', metavar='ACTION')
+    c.set_defaults(action='list')
+    alarm.add_parser('list', help='show the alarms (the default)', parents=[common])
+    a = alarm.add_parser('set', help='add an alarm, or change the one at that time',
+                         description='Add an alarm, or change the one at that time.',
+                         parents=[common])
+    a.add_argument('time', type=parse_time, help='for example 7:30')
+    a.add_argument('--days', type=parse_days, default=0,
+                   help='when to repeat: ' + ', '.join(REPEATS)
+                        + ', or days like mon,wed (default: once)')
+    a.add_argument('--off', action='store_true',
+                   help='keep it, but switched off')
+    a = alarm.add_parser('unset', help='remove the alarm at that time',
+                         description='Remove the alarm at that time.',
+                         parents=[common])
+    a.add_argument('time', help="for example 7:30, or 'all'")
+
+    c = command('face', cmd_face, 'show the watch faces, or choose one')
+    c.add_argument('name', nargs='?', help='the watch face to use')
+
     c = command('notify', cmd_notify, 'show a notification on the watch')
     c.add_argument('title')
     c.add_argument('body')
@@ -290,6 +407,6 @@ def main(argv=None):
     except KeyboardInterrupt:
         sys.exit(130)
     except (ble.NotFound, ConnectionError, TimeoutError, IOError,
-            BleakError, dfu.DfuError, ReplError) as e:
+            BleakError, dfu.DfuError, ReplError, watch.NotAvailable) as e:
         print(f'wasptool: {e}', file=sys.stderr)
         sys.exit(1)

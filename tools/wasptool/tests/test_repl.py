@@ -150,3 +150,66 @@ def test_info(monkeypatch):
     assert facts['time'] == '2026-11-01T09:30:05'
     assert facts['ram_free'] == 12000
     assert facts['last_hang'] == (0x521a4, 0x52169, 0x21000026, 5000)
+
+
+def _fake_system(monkeypatch, launcher_ring=(), faces=(), face=None):
+    system = types.SimpleNamespace(launcher_ring=list(launcher_ring),
+                                   quick_ring=[face], app=None, saved={})
+    def register(path, watch_face=False):
+        system.quick_ring[0] = types.new_class(path.rsplit('.', 1)[1])()
+    system.register = register
+    system.save_settings = lambda **kw: system.saved.update(kw)
+    system.switch = lambda app: setattr(system, 'app', app)
+    sys = __import__('sys')
+    monkeypatch.setitem(sys.modules, 'wasp', types.SimpleNamespace(system=system))
+    monkeypatch.setitem(sys.modules, 'appregistry',
+                        types.SimpleNamespace(faces_list=tuple(faces)))
+    return system
+
+
+def test_alarms(monkeypatch):
+    class AlarmApp:
+        def __init__(self):
+            self.alarms = [(7, 30, 0x9f)]
+        def get_alarms(self):
+            return list(self.alarms)
+        def set_alarms(self, alarms):
+            self.alarms = alarms
+    app = AlarmApp()
+    _fake_system(monkeypatch, [object(), app])
+
+    async def go():
+        repl = await session(FakeWatch())
+        assert await watch.alarms(repl) == [(7, 30, 0x9f)]
+        await watch.set_alarms(repl, [(6, 0, 0x80), (7, 30, 0x1f)])
+    run(go())
+    assert app.alarms == [(6, 0, 0x80), (7, 30, 0x1f)]
+
+
+def test_alarms_without_app(monkeypatch):
+    _fake_system(monkeypatch, [object()])
+
+    async def go():
+        with pytest.raises(watch.NotAvailable):
+            await watch.alarms(await session(FakeWatch()))
+    run(go())
+
+
+def test_faces(monkeypatch):
+    class ClockApp:
+        pass
+    old = ClockApp()
+    system = _fake_system(monkeypatch, faces=(('apps.user.clock', 'Clock'),
+                                              ('apps.user.pixel_clock', 'PixelClock')),
+                          face=old)
+    system.app = old
+
+    async def go():
+        repl = await session(FakeWatch())
+        assert await watch.faces(repl) == (['Clock', 'PixelClock'], 'Clock')
+        await watch.set_face(repl, 'PixelClock')
+        assert await watch.faces(repl) == (['Clock', 'PixelClock'], 'PixelClock')
+    run(go())
+    assert system.saved == {'face': 'apps.user.pixel_clock.PixelClockApp'}
+    # It was on show, so the new face replaces it straight away
+    assert system.app is system.quick_ring[0]

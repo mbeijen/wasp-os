@@ -102,6 +102,63 @@ async def notify(repl, title, body, id=1):
                     'wasp.watch.vibrator.pulse(ms=wasp.system.notify_duration)')
 
 
+class NotAvailable(Exception):
+    """The watch does not have what was asked for."""
+
+
+# The Alarm app, when it is enabled (in the Software app)
+ALARM_APP = ("import wasp\n_a = [a for a in wasp.system.launcher_ring "
+             "if type(a).__name__ == 'AlarmApp']\n"
+             "_a = _a[0] if _a and hasattr(_a[0], 'get_alarms') else None")
+
+
+async def _alarm_app(repl):
+    await repl.exec(ALARM_APP)
+    if (await repl.exec('print(_a is not None)')).strip() != 'True':
+        raise NotAvailable('the Alarm app is not enabled (see the Software '
+                           'app), or this firmware is too old to set alarms')
+
+
+async def alarms(repl):
+    """The alarms, as a list of (hour, minute, days) tuples.
+
+    days is a bit mask: Monday is bit 0, Sunday bit 6, with none for an
+    alarm that goes off once, and 0x80 is set if the alarm is on.
+    """
+    await _alarm_app(repl)
+    return ast.literal_eval(await repl.exec('print(_a.get_alarms())\ndel _a'))
+
+
+async def set_alarms(repl, alarms):
+    """Replace the alarms on the watch (up to four)."""
+    await _alarm_app(repl)
+    await repl.exec(f'_a.set_alarms({[tuple(a) for a in alarms]!r})\ndel _a')
+
+
+async def faces(repl):
+    """The watch faces to choose from, and the one in use, by label."""
+    return ast.literal_eval(await repl.exec(
+            'import wasp, appregistry\n'
+            'print(([f[1] for f in appregistry.faces_list], '
+            'type(wasp.system.quick_ring[0]).__name__[:-3]))'))
+
+
+async def set_face(repl, label):
+    """Use the watch face with this label (from faces()), and keep it."""
+    await repl.exec(
+        'import wasp, appregistry\n'
+        f'_f = [f for f in appregistry.faces_list if f[1] == {label!r}][0]\n'
+        "_f = '{}.{}App'.format(*_f)")
+    await repl.exec(
+        '_o = wasp.system.quick_ring[0]\n'
+        'wasp.system.register(_f, watch_face=True)\n'
+        "if hasattr(wasp.system, 'save_settings'):\n"
+        '    wasp.system.save_settings(face=_f)\n'
+        'if wasp.system.app is _o:\n'
+        '    wasp.system.switch(wasp.system.quick_ring[0])\n'
+        'del _f, _o')
+
+
 async def _mkdirs(repl, path):
     parts = path.split('/')[:-1]
     for i in range(1, len(parts) + 1):

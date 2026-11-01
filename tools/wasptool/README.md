@@ -23,6 +23,11 @@ wasptool info --json                # the same, for scripts
 wasptool rtc                        # how far off is the watch's clock?
 wasptool rtc set                    # set it to this computer's time
 wasptool notify "Build" "Passed"    # show a notification
+wasptool alarm                      # the alarms
+wasptool alarm set 7:30 --days weekdays   # add one, or change the one at 7:30
+wasptool alarm unset 7:30           # remove it ("all" removes them all)
+wasptool face                       # the watch faces, * marks the one in use
+wasptool face PixelClock            # use another one
 wasptool ota micropython.zip        # update the firmware
 wasptool push apps/snake.py         # copy a file to the watch
 wasptool pull alarms.txt            # and back
