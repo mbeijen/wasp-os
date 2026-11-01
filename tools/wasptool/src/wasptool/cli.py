@@ -83,6 +83,7 @@ async def cmd_info(args):
         ('Version', facts['version'] or 'unknown (too old to say)'),
         ('Board', facts['board']),
         ('MicroPython', facts['micropython']),
+        ('Bootloader', facts.get('bootloader') or '-'),
         ('Address', f"{facts['address']} ({facts['name']})"),
         ('Battery', battery),
         ('Uptime', _duration(facts['uptime'])),

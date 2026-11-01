@@ -32,7 +32,9 @@ INFO = (
     "_i['voltage_mv'] = wasp.watch.battery.voltage_mv()",
     "_i['uptime'] = wasp.watch.rtc.uptime\n"
     "_i['time'] = wasp.watch.rtc.get_localtime()",
-    # Where the watch hung before its last watchdog reset (newer firmware)
+    # The bootloader, and where the watch hung before its last watchdog
+    # reset (newer firmware)
+    "_i['bootloader'] = getattr(wasp.watch, 'bootloader', None)\n"
     "_i['last_hang'] = getattr(wasp.watch, 'last_hang', None)",
     "gc.collect()\n_i['ram_free'] = gc.mem_free()\nprint(repr(_i))\ndel _i",
 )

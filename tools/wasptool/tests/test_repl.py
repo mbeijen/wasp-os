@@ -135,7 +135,8 @@ def test_info(monkeypatch):
     rtc = types.SimpleNamespace(uptime=3600,
                                 get_localtime=lambda: (2026, 11, 1, 9, 30, 5, 6, 305))
     fake_wasp = types.SimpleNamespace(watch=types.SimpleNamespace(
-            battery=battery, rtc=rtc, last_hang=(0x521a4, 0x52169, 0x21000026, 5000)))
+            battery=battery, rtc=rtc, last_hang=(0x521a4, 0x52169, 0x21000026, 5000),
+            bootloader='0.3.0-39-g357b9a5 s132 6.1.1'))
     monkeypatch.setitem(__import__('sys').modules, 'wasp', fake_wasp)
     monkeypatch.setattr(gc, 'mem_free', lambda: 12000, raising=False)
 
@@ -150,6 +151,7 @@ def test_info(monkeypatch):
     assert facts['time'] == '2026-11-01T09:30:05'
     assert facts['ram_free'] == 12000
     assert facts['last_hang'] == (0x521a4, 0x52169, 0x21000026, 5000)
+    assert facts['bootloader'] == '0.3.0-39-g357b9a5 s132 6.1.1'
 
 
 def _fake_system(monkeypatch, launcher_ring=(), faces=(), face=None):
