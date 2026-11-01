@@ -1,3 +1,4 @@
+import os
 import pytest
 import time
 import wasp
@@ -194,3 +195,28 @@ def test_settings_slider_drag(system):
     wasp.watch.touch.swipe('left')
     system.step()
     assert(system.app != app)
+
+def test_settings_restored(system):
+    """Settings saved before a restart are restored after it."""
+    face = wasp.system.quick_ring[0]
+    module, label = wasp.appregistry.faces_list[-1]
+    system.brightness = 1
+    system.units = 'Imperial'
+    system.save_settings(face='{}.{}App'.format(module, label),
+                         apps=['apps.user.calculator.CalculatorApp'])
+
+    system.brightness = 3
+    system.units = 'Metric'
+    system._load_settings()
+    assert(system.brightness == 1)
+    assert(system.units == 'Imperial')
+    assert(type(system.quick_ring[0]).__name__ == label + 'App')
+    names = [type(app).__name__ for app in system.launcher_ring]
+    assert('CalculatorApp' in names)
+    assert('AlarmApp' not in names)
+
+    os.remove('settings.json')
+    system._settings = {}
+    system.brightness = 2
+    system.units = 'Metric'
+    system.quick_ring[0] = face

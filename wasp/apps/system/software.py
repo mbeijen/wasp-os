@@ -81,6 +81,9 @@ class SoftwareApp():
                                   wasp.EventMask.SWIPE_UPDOWN)
 
     def background(self):
+        wasp.system.save_settings(apps=[
+            '{}.{}App'.format(module, checkbox.label.replace(' ', ''))
+            for module, checkbox in self.db if checkbox.state])
         self.si = None
         del self.si
         self.page = None

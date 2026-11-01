@@ -15,6 +15,7 @@
     shortcut (and to reduce memory by keeping it out of other namespaces).
 """
 import gc
+import json
 import machine
 import micropython
 import steplogger
@@ -138,6 +139,7 @@ class Manager():
         self.blank_after = 15
 
         self._alarms = []
+        self._settings = {}
         self._brightness = 2
         self._notifylevel = 2
         if 'P8' in watch.os.uname().machine:
@@ -157,6 +159,7 @@ class Manager():
             # Register default apps if main hasn't put anything on the quick ring
             if not self.quick_ring:
                 self.register_defaults()
+            self._load_settings()
 
             # System start up...
             watch.display.poweron()
@@ -220,6 +223,58 @@ class Manager():
         else:
             self.launcher_ring.append(app)
             self.launcher_ring.sort(key = _key_app)
+
+    def save_settings(self, **changes):
+        """Keep settings over a restart of the watch, such as an update.
+
+        The brightness, notification level and units are always saved.
+        Applications pass any other settings as keywords. The settings
+        file is only written when something changed.
+        """
+        settings = dict(self._settings)
+        settings.update(changes)
+        settings['brightness'] = self._brightness
+        settings['notify_level'] = self._notifylevel
+        settings['units'] = self.units
+        if settings == self._settings:
+            return
+        try:
+            with open('settings.json', 'w') as f:
+                json.dump(settings, f)
+        except OSError:
+            return
+        self._settings = settings
+
+    def _load_settings(self):
+        """Restore the settings kept by save_settings()."""
+        try:
+            with open('settings.json') as f:
+                settings = json.load(f)
+        except Exception:
+            return
+        self._settings = settings
+        self._brightness = settings.get('brightness', self._brightness)
+        self.notify_level = settings.get('notify_level', self._notifylevel)
+        self.units = settings.get('units', self.units)
+
+        face = settings.get('face')
+        if face and self.quick_ring:
+            self.register(face, watch_face=True, no_except=True)
+
+        # The applications enabled with the Software app
+        apps = settings.get('apps')
+        if apps is not None:
+            names = [type(app).__name__ for app in self.launcher_ring]
+            for app in apps:
+                if app[app.rindex('.') + 1:] not in names:
+                    self.register(app, no_except=True)
+            for module, label in appregistry.software_list:
+                label = label.replace(' ', '')
+                if '{}.{}App'.format(module, label) not in apps:
+                    for app in self.launcher_ring:
+                        if type(app).__name__ == label + 'App':
+                            self.launcher_ring.remove(app)
+                            break
 
     def unregister(self, cls):
         for app in self.launcher_ring:

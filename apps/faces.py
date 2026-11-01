@@ -35,6 +35,8 @@ class FacesApp():
         wasp.system.request_event(wasp.EventMask.SWIPE_UPDOWN)
 
     def background(self):
+        (module, label) = self.choices[self.choice]
+        wasp.system.save_settings(face='{}.{}App'.format(module, label))
         self.choices = None
         del self.choices
         self.choice = None

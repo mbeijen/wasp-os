@@ -19,6 +19,7 @@ wasp/version.py
 # uv-managed virtualenv
 /.venv/
 
-# Saved by the Alarm and Morse apps when they run in the simulator
+# Saved by the system and the Alarm and Morse apps in the simulator
+/settings.json
 /alarms.txt
 /Morse.txt

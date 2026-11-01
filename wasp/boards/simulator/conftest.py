@@ -1,9 +1,14 @@
 import glob
 import importlib
 import inspect
+import os
 import pytest
 import pprint
 import json
+
+# Start from the default settings, not those an earlier run saved
+if os.path.exists('settings.json'):
+    os.remove('settings.json')
 
 def discover_app_constructors():
     apps = []

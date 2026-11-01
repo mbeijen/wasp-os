@@ -50,6 +50,9 @@ class SettingsApp():
         wasp.system.request_event(wasp.EventMask.SWIPE_UPDOWN)
         wasp.system.request_event(wasp.EventMask.SWIPE_LEFTRIGHT)
 
+    def background(self):
+        wasp.system.save_settings()
+
     def touch(self, event):
         if self._current_setting == 'Brightness':
             self._slider.touch(event)
