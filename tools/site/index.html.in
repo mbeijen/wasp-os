@@ -22,6 +22,10 @@ operating system written in MicroPython.</p>
 {{files}}
 </section>
 
+<h2>Companion</h2>
+<p>Set the clock, the alarms and the watch face from Chrome or Edge, over
+Bluetooth: <a href="companion/">open the companion</a>.</p>
+
 <h2>Update a watch that runs wasp-os</h2>
 <p>With <a href="{{source_url}}/tree/master/tools/wasptool">wasptool</a>, from a
 checkout of the source:</p>

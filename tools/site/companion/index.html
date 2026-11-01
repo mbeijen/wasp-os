@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wasp-os companion</title>
+<meta name="description" content="Set the clock, alarms and watch face of a PineTime running wasp-os, from the browser.">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main>
+<p class="crumb"><a href="../">wasp-os builds</a></p>
+<h1>Companion</h1>
+<p class="lede">Set the clock, the alarms and the watch face of a PineTime that
+runs wasp-os, over Bluetooth, from Chrome or Edge.</p>
+
+<p id="unsupported" class="warn" hidden>This browser cannot use Bluetooth. Use
+Chrome or Edge on a computer or on Android. Firefox, Safari and every browser
+on iOS lack Web Bluetooth. On Linux, Chrome may need
+<code>chrome://flags/#enable-experimental-web-platform-features</code>
+switched on.</p>
+
+<p class="bar">
+<button id="connect">Connect to the watch</button>
+<button id="disconnect" class="quiet" hidden>Disconnect</button>
+<span id="message" aria-live="polite"></span>
+</p>
+
+<div id="watch" hidden>
+
+<section class="step">
+<h2>Watch <button id="refresh" class="quiet small">Refresh</button></h2>
+<dl id="info" class="facts"></dl>
+</section>
+
+<section class="step">
+<h2>Clock</h2>
+<p id="clock"></p>
+<p><button id="settime">Set to this computer's time</button></p>
+</section>
+
+<section class="step">
+<h2>Alarms</h2>
+<p id="alarms-note" class="meta" hidden></p>
+<ul id="alarms" class="rows"></ul>
+<form id="add-alarm" class="row-form">
+<input id="alarm-time" type="time" required value="07:00" aria-label="Time">
+<select id="alarm-repeat" aria-label="Repeat">
+<option value="0">once</option>
+<option value="127">daily</option>
+<option value="31">weekdays</option>
+<option value="96">weekends</option>
+</select>
+<button>Add</button>
+</form>
+</section>
+
+<section class="step">
+<h2>Watch face</h2>
+<p><select id="face" aria-label="Watch face"></select></p>
+</section>
+
+<section class="step">
+<h2>Find the watch</h2>
+<p><button id="buzz" class="quiet">Make it buzz</button></p>
+</section>
+
+</div>
+
+<details>
+<summary>If it does not work</summary>
+<ul>
+<li>Close other programs connected to the watch, such as Gadgetbridge or
+wasptool: the watch takes one connection at a time.</li>
+<li>Wake the watch and keep it close when you connect.</li>
+<li>Anyone within Bluetooth range can connect to a watch running wasp-os in
+the same way; pairing is planned.</li>
+</ul>
+</details>
+</main>
+
+<script type="module">
+import {NUS, Console} from '../lib/console.js';
+import * as watch from './companion.js';
+
+const $ = id => document.getElementById(id);
+let device = null, repl = null;
+let alarms = [];
+
+// One thing at a time: the console runs one piece of code at a time
+let queue = Promise.resolve();
+function job(fn) {
+  const run = queue.then(async () => {
+    if (!repl) return;
+    try {
+      return await fn();
+    } catch (e) {
+      say(e.message, true);
+    }
+  });
+  queue = run.catch(() => {});
+  return run;
+}
+
+function say(msg, error = false) {
+  $('message').textContent = msg;
+  $('message').className = error ? 'error' : 'meta';
+}
+
+const kb = n => n == null ? '-' : `${Math.floor(n / 1024)} KB`;
+function duration(secs) {
+  const d = Math.floor(secs / 86400), h = Math.floor(secs / 3600) % 24,
+        m = Math.floor(secs / 60) % 60, s = Math.floor(secs) % 60;
+  const pad = n => String(n).padStart(2, '0');
+  return (d ? `${d}d ` : '') + `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+async function showInfo() {
+  const i = await watch.info(repl);
+  const t = i.time;
+  const rows = [
+    ['Version', i.version || 'unknown (too old to say)'],
+    ['MicroPython', i.micropython],
+    ['Bootloader', i.bootloader || '-'],
+    ['Battery', `${i.battery}% (${(i.voltage_mv / 1000).toFixed(2)} V)` +
+                (i.charging ? ', charging' : '')],
+    ['Uptime', duration(i.uptime)],
+    ['Time', `${t[0]}-${String(t[1]).padStart(2, '0')}-${String(t[2]).padStart(2, '0')} ` +
+             `${t.slice(3, 6).map(n => String(n).padStart(2, '0')).join(':')}`],
+    ['RAM free', kb(i.ram_free)],
+    ['Flash free', kb(i.flash_free)],
+  ];
+  if (i.last_hang) {
+    const [pc, lr] = i.last_hang;
+    rows.push(['Last hang', `pc 0x${pc.toString(16)}, lr 0x${lr.toString(16)}`]);
+  }
+  $('info').replaceChildren(...rows.flatMap(([k, v]) => {
+    const dt = document.createElement('dt'), dd = document.createElement('dd');
+    dt.textContent = k; dd.textContent = v;
+    return [dt, dd];
+  }));
+}
+
+async function showClock() {
+  const d = await watch.drift(repl);
+  $('clock').textContent = d === 0 ? 'The watch is on time.' :
+      `The watch is ${Math.abs(d)} s ${d > 0 ? 'ahead' : 'behind'}.`;
+}
+
+function renderAlarms() {
+  $('alarms').replaceChildren(...alarms.map(([h, m, days], n) => {
+    const li = document.createElement('li');
+    const label = document.createElement('label');
+    const on = document.createElement('input');
+    on.type = 'checkbox';
+    on.checked = !!(days & watch.ALARM_ON);
+    on.onchange = () => saveAlarms(alarms.map((a, i) =>
+        i === n ? [h, m, days ^ watch.ALARM_ON] : a));
+    const time = document.createElement('b');
+    time.textContent = `${h}:${String(m).padStart(2, '0')}`;
+    const repeat = document.createElement('span');
+    repeat.className = 'meta';
+    repeat.textContent = watch.formatDays(days);
+    label.append(on, ' ', time, ' ', repeat);
+    const remove = document.createElement('button');
+    remove.className = 'quiet small';
+    remove.textContent = 'Remove';
+    remove.onclick = () => saveAlarms(alarms.filter((_, i) => i !== n));
+    li.append(label, remove);
+    return li;
+  }));
+  if (!alarms.length) {
+    const li = document.createElement('li');
+    li.className = 'meta';
+    li.textContent = 'No alarms.';
+    $('alarms').append(li);
+  }
+  $('add-alarm').hidden = alarms.length >= watch.MAX_ALARMS;
+}
+
+async function showAlarms() {
+  try {
+    alarms = await watch.alarms(repl);
+    $('alarms-note').hidden = true;
+    $('add-alarm').hidden = false;
+    renderAlarms();
+  } catch (e) {
+    if (!(e instanceof watch.NotAvailable)) throw e;
+    $('alarms-note').textContent = e.message;
+    $('alarms-note').hidden = false;
+    $('alarms').replaceChildren();
+    $('add-alarm').hidden = true;
+  }
+}
+
+function saveAlarms(list) {
+  return job(async () => {
+    await watch.setAlarms(repl, list);
+    alarms = await watch.alarms(repl);
+    renderAlarms();
+    say('Alarms saved.');
+  });
+}
+
+const faceKey = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+async function showFaces() {
+  const {labels, current} = await watch.faces(repl);
+  $('face').replaceChildren(...labels.map(l => new Option(l, l)));
+  const match = labels.find(l => faceKey(l) === faceKey(current));
+  if (match) $('face').value = match;
+}
+
+async function connect() {
+  device = await navigator.bluetooth.requestDevice({
+    filters: [{services: [NUS]}, {name: 'mpus'}],
+    optionalServices: [NUS],
+  });
+  device.addEventListener('gattserverdisconnected', disconnected);
+  say(`Connecting to ${device.name}…`);
+  const server = await device.gatt.connect();
+  const c = await Console.open(server);
+  await c.enter();
+  repl = c;
+  $('connect').hidden = true;
+  $('disconnect').hidden = false;
+  $('watch').hidden = false;
+  say(`Connected to ${device.name}.`);
+  await job(async () => {
+    await showInfo();
+    await showClock();
+    await showAlarms();
+    await showFaces();
+  });
+}
+
+function disconnected() {
+  if (repl) repl.stream.close();
+  repl = null;
+  $('connect').hidden = false;
+  $('disconnect').hidden = true;
+  $('watch').hidden = true;
+  say('Disconnected.');
+}
+
+$('unsupported').hidden = !!navigator.bluetooth;
+$('connect').disabled = !navigator.bluetooth;
+$('connect').onclick = async () => {
+  $('connect').disabled = true;
+  try {
+    await connect();
+  } catch (e) {
+    // Closing the device chooser is not an error worth showing
+    if (e.name !== 'NotFoundError') say(e.message, true);
+    if (device?.gatt.connected) device.gatt.disconnect();
+  } finally {
+    $('connect').disabled = false;
+  }
+};
+$('disconnect').onclick = () => job(async () => {
+  // Back to the normal prompt, for the next program that connects
+  await repl.leave().catch(() => {});
+  device.gatt.disconnect();
+});
+$('refresh').onclick = () => job(async () => { await showInfo(); await showClock(); });
+$('settime').onclick = () => job(async () => {
+  say('Setting the clock…');
+  await watch.setTime(repl);
+  await showClock();
+  say('Clock set.');
+});
+$('add-alarm').onsubmit = e => {
+  e.preventDefault();
+  const [h, m] = $('alarm-time').value.split(':').map(Number);
+  const days = Number($('alarm-repeat').value) | watch.ALARM_ON;
+  // One alarm per time: adding one at the same time changes it
+  saveAlarms([...alarms.filter(a => a[0] !== h || a[1] !== m), [h, m, days]]);
+};
+$('face').onchange = () => job(async () => {
+  await watch.setFace(repl, $('face').value);
+  say(`Watch face: ${$('face').value}.`);
+});
+$('buzz').onclick = () => job(() => watch.buzz(repl));
+</script>
+</body>
+</html>

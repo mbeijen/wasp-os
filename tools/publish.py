@@ -187,28 +187,8 @@ def render_release_index(release):
             f'<a href="../../">All builds</a></p><ul>{rows}</ul>\n')
 
 
-def main():
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument('--upload', metavar='HOST:DIR',
-                   help='copy the site there with rsync over ssh')
-    p.add_argument('--notes', help='release notes (default: the commit '
-                   'subjects since the last release)')
-    p.add_argument('--notes-file', type=argparse.FileType('r'),
-                   help='read the release notes from this file')
-    p.add_argument('--no-build', action='store_true',
-                   help='publish build-pinetime/ as it is')
-    p.add_argument('--allow-dirty', action='store_true',
-                   help='publish a build with uncommitted changes')
-    p.add_argument('--site', default=os.path.join(ROOT, 'build-site'),
-                   help='where to keep the site (default: build-site/)')
-    args = p.parse_args()
-
-    if git('status', '--porcelain', '--untracked-files=no') and \
-            not args.allow_dirty:
-        sys.exit('There are uncommitted changes; commit them first, or '
-                 'pass --allow-dirty')
-
-    build = os.path.join(ROOT, 'build-pinetime')
+def check_build(args, build):
+    """Build the firmware if asked, and return its version."""
     if not args.no_build:
         run('make', '-j8', 'BOARD=pinetime', f'PYTHON={sys.executable}',
             'micropython')
@@ -225,6 +205,35 @@ def main():
         if not git('rev-parse', 'HEAD').startswith(
                 version.rsplit('-g', 1)[-1]):
             sys.exit(f'{version} was not built from this commit')
+    return version
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument('--upload', metavar='HOST:DIR',
+                   help='copy the site there with rsync over ssh')
+    p.add_argument('--notes', help='release notes (default: the commit '
+                   'subjects since the last release)')
+    p.add_argument('--notes-file', type=argparse.FileType('r'),
+                   help='read the release notes from this file')
+    p.add_argument('--site-only', action='store_true',
+                   help='only update the pages, without adding a release')
+    p.add_argument('--no-build', action='store_true',
+                   help='publish build-pinetime/ as it is')
+    p.add_argument('--allow-dirty', action='store_true',
+                   help='publish a build with uncommitted changes')
+    p.add_argument('--site', default=os.path.join(ROOT, 'build-site'),
+                   help='where to keep the site (default: build-site/)')
+    args = p.parse_args()
+
+    if git('status', '--porcelain', '--untracked-files=no') and \
+            not args.allow_dirty:
+        sys.exit('There are uncommitted changes; commit them first, or '
+                 'pass --allow-dirty')
+
+    build = os.path.join(ROOT, 'build-pinetime')
+    if not args.site_only:
+        version = check_build(args, build)
 
     site = args.site
     os.makedirs(site, exist_ok=True)
@@ -245,29 +254,34 @@ def main():
     except FileNotFoundError:
         manifest = {'format': MANIFEST_FORMAT, 'releases': []}
 
-    commit = git('rev-parse', 'HEAD')
-    if args.notes_file:
-        notes = args.notes_file.read().strip()
-    elif args.notes is not None:
-        notes = args.notes
+    if args.site_only:
+        if not manifest['releases']:
+            sys.exit('There are no releases yet: publish one first')
     else:
-        notes = default_notes(manifest, commit)
+        commit = git('rev-parse', 'HEAD')
+        if args.notes_file:
+            notes = args.notes_file.read().strip()
+        elif args.notes is not None:
+            notes = args.notes
+        else:
+            notes = default_notes(manifest, commit)
 
-    release_dir = os.path.join(site, 'releases', version)
-    add_release(manifest, version, commit, notes, build, release_dir)
-    with open(os.path.join(release_dir, 'index.html'), 'w') as f:
-        f.write(render_release_index(manifest['releases'][0]))
-    with open(manifest_path + '.tmp', 'w') as f:
-        json.dump(manifest, f, indent=1)
-        f.write('\n')
-    os.replace(manifest_path + '.tmp', manifest_path)
+        release_dir = os.path.join(site, 'releases', version)
+        add_release(manifest, version, commit, notes, build, release_dir)
+        with open(os.path.join(release_dir, 'index.html'), 'w') as f:
+            f.write(render_release_index(manifest['releases'][0]))
+        with open(manifest_path + '.tmp', 'w') as f:
+            json.dump(manifest, f, indent=1)
+            f.write('\n')
+        os.replace(manifest_path + '.tmp', manifest_path)
     with open(os.path.join(site, 'index.html'), 'w') as f:
         f.write(render_index(manifest))
-    # The style sheet and the flasher
+    # The style sheet and the pages that talk to the watch
     shutil.copytree(os.path.join(ROOT, 'tools', 'site'), site,
                     ignore=shutil.ignore_patterns('*.in', 'tests'),
                     dirs_exist_ok=True)
-    print(f'Added {version} to {site}')
+    print(f'Updated the pages in {site}' if args.site_only else
+          f'Added {version} to {site}')
 
     if args.upload:
         # Not --delete: the server keeps releases this site does not have.
