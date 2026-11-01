@@ -10,6 +10,8 @@ import os
 import sys
 import time
 
+from bleak.exc import BleakError
+
 from wasptool import __version__, ble, dfu, watch
 from wasptool.repl import Repl, ReplError
 
@@ -184,9 +186,7 @@ async def cmd_ota(args):
             address = args.device
     await asyncio.sleep(2)
 
-    device = await dfu.find(address, args.timeout + 5)
-    updater = dfu.Updater(device, image, init,
-                          progress_bar(f'Updating {device.address}'))
+    updater = dfu.Updater(address, image, init, progress_bar('Updating'))
     start = time.monotonic()
     await updater.connect(args.retries, args.timeout)
     try:
@@ -283,6 +283,6 @@ def main(argv=None):
     except KeyboardInterrupt:
         sys.exit(130)
     except (ble.NotFound, ConnectionError, TimeoutError, IOError,
-            dfu.DfuError, ReplError) as e:
+            BleakError, dfu.DfuError, ReplError) as e:
         print(f'wasptool: {e}', file=sys.stderr)
         sys.exit(1)

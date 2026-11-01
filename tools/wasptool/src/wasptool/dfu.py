@@ -31,6 +31,10 @@ RESULTS = {1: 'success', 2: 'invalid state', 3: 'not supported',
            4: 'data size exceeds limits', 5: 'CRC error',
            6: 'operation failed'}
 
+STEPS = {START_DFU: 'starting', INITIALIZE_DFU: 'sending the init packet',
+         RECEIVE_FIRMWARE_IMAGE: 'receiving the image',
+         VALIDATE_FIRMWARE: 'validating the image'}
+
 APPLICATION = 4
 PIECE = 20
 # A packet receipt every 20 packets: measured on a PineTime, going from 5
@@ -87,8 +91,9 @@ async def find(address=None, timeout=15.0):
 
 
 class Updater:
-    def __init__(self, device, image, init, progress=None):
-        self.device = device
+    def __init__(self, address, image, init, progress=None):
+        self.address = address
+        self.device = None
         self.image = image
         self.init = init
         self.progress = progress
@@ -96,7 +101,13 @@ class Updater:
         self._notes = asyncio.Queue()
 
     async def connect(self, retries=3, timeout=10.0):
+        """Find the bootloader and connect, retrying on failure.
+
+        Each attempt scans again, since BlueZ forgets a device it failed
+        to connect to.
+        """
         for attempt in range(1, retries + 1):
+            self.device = await find(self.address, timeout + 5)
             self._client = BleakClient(self.device)
             try:
                 await self._client.connect(timeout=timeout)
@@ -122,23 +133,24 @@ class Updater:
         # Flow control comes from the packet receipts, so no responses
         await self._client.write_gatt_char(PACKET, data, response=False)
 
-    async def _note(self, timeout=10.0):
+    async def _note(self, step, timeout=10.0):
         try:
             return await asyncio.wait_for(self._notes.get(), timeout)
         except TimeoutError:
-            raise DfuError('The bootloader stopped answering') from None
+            raise DfuError(f'The bootloader stopped answering ({step})') from None
 
     async def _expect(self, procedure, timeout=10.0):
-        note = await self._note(timeout)
+        step = STEPS[procedure]
+        note = await self._note(step, timeout)
         # When the image ends on a receipt interval, a last packet receipt
         # may come before the response
         while note[0] == PACKET_RECEIPT:
-            note = await self._note(timeout)
+            note = await self._note(step, timeout)
         if len(note) < 3 or note[0] != RESPONSE or note[1] != procedure:
             raise DfuError(f'Unexpected reply {note.hex()} from the bootloader')
         if note[2] != 1:
             raise DfuError(f'The bootloader reported '
-                           f'{RESULTS.get(note[2], note[2])} (step {procedure})')
+                           f'{RESULTS.get(note[2], note[2])} ({step})')
 
     async def run(self):
         image = self.image
@@ -160,7 +172,7 @@ class Updater:
             await self._data(image[i:i + PIECE])
             sent = min(i + PIECE, len(image))
             if sent < len(image) and n % RECEIPT_INTERVAL == 0:
-                note = await self._note()
+                note = await self._note(f'after {sent} of {len(image)} bytes')
                 if note[0] == RESPONSE:
                     # The bootloader gave up (or was still busy with an
                     # earlier, interrupted transfer)
