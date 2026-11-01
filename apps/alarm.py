@@ -145,6 +145,36 @@ class AlarmApp:
         del self.day_btns
 
         self._set_pending_alarms()
+        self._save()
+
+    def get_alarms(self):
+        """Return the alarms, for companion apps such as wasptool.
+
+        Each alarm is a tuple of (hour, minute, days). days is a bit mask
+        of the days to repeat on, with Monday as bit 0 and Sunday as bit
+        6 (none for a one time alarm), plus 0x80 if the alarm is on.
+        """
+        return [tuple(self.alarms[n]) for n in range(self.num_alarms)]
+
+    def set_alarms(self, alarms):
+        """Replace the alarms (up to four) with ones like get_alarms()."""
+        if len(alarms) > len(self.alarms):
+            raise ValueError('too many alarms')
+        foreground = wasp.system.app is self
+        if not foreground:
+            self._deactivate_pending_alarms()
+        for n, alarm in enumerate(self.alarms):
+            for i, value in enumerate(alarms[n] if n < len(alarms) else (8, 0, 0)):
+                alarm[i] = value
+        self.num_alarms = len(alarms)
+        if foreground:
+            self.page = _HOME_PAGE
+            self._draw()
+        else:
+            self._set_pending_alarms()
+        self._save()
+
+    def _save(self):
         try:
             with open("alarms.txt", "w") as f:
                 for n in range(self.num_alarms):
