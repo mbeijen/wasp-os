@@ -263,6 +263,10 @@ def main():
     os.replace(manifest_path + '.tmp', manifest_path)
     with open(os.path.join(site, 'index.html'), 'w') as f:
         f.write(render_index(manifest))
+    # The style sheet and the flasher
+    shutil.copytree(os.path.join(ROOT, 'tools', 'site'), site,
+                    ignore=shutil.ignore_patterns('*.in', 'tests'),
+                    dirs_exist_ok=True)
     print(f'Added {version} to {site}')
 
     if args.upload:

@@ -5,47 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>wasp-os builds</title>
 <meta name="description" content="Firmware builds of wasp-os, the MicroPython smart watch OS, for the PineTime.">
-<style>
-:root {
-  --bg: #fbfaf7; --fg: #1d1d1b; --muted: #6b6a66; --line: #e2dfd8;
-  --accent: #b5480e; --code: #f1eee8;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #161615; --fg: #e9e7e2; --muted: #9a978f; --line: #33322f;
-    --accent: #f08a4b; --code: #23221f;
-  }
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0; background: var(--bg); color: var(--fg);
-  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-main { max-width: 46rem; margin: 0 auto; padding: 2.5rem 1rem 4rem; }
-h1 { font-size: 2rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
-h2 { font-size: 1.2rem; margin: 2.5rem 0 .75rem; }
-a { color: var(--accent); }
-.lede { color: var(--muted); margin: 0 0 2rem; }
-.release { border-top: 1px solid var(--line); padding-top: 1rem; }
-.release h2 { margin-top: 0; }
-.meta, .date { color: var(--muted); font-size: .9rem; }
-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-td { padding: .5rem .5rem .1rem 0; vertical-align: top; }
-td:first-child { white-space: nowrap; font-weight: 600; }
-td.num { text-align: right; white-space: nowrap; color: var(--muted); }
-tr.sum td { padding-top: 0; padding-bottom: .6rem; border-bottom: 1px solid var(--line);
-  font-weight: normal; font-size: .75rem; color: var(--muted); white-space: normal; }
-code, pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
-tr.sum code { word-break: break-all; }
-pre { background: var(--code); padding: .75rem 1rem; border-radius: 6px;
-  overflow-x: auto; font-size: .9rem; }
-footer { margin-top: 3rem; border-top: 1px solid var(--line); padding-top: 1rem;
-  color: var(--muted); font-size: .9rem; }
-@media (max-width: 34rem) {
-  td:first-child { white-space: normal; word-break: break-all; }
-  td:nth-child(2) { display: none; }
-}
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
@@ -66,7 +26,7 @@ operating system written in MicroPython.</p>
 <p>With <a href="{{source_url}}/tree/master/tools/wasptool">wasptool</a>, from a
 checkout of the source:</p>
 <pre>cd tools/wasptool
-uv run wasptool ota micropython.zip</pre>
+uv run wasptool update</pre>
 <p>Your settings, alarms and step count are kept.</p>
 
 <h2>Install wasp-os for the first time</h2>
