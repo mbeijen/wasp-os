@@ -6,6 +6,7 @@
 """
 
 import bma42x
+import machine
 import time
 
 # Sensor orientation definition.
@@ -23,6 +24,13 @@ _DEFAULT_ORIENTATION = const(0b010010101)
 #          Y sign ────────────────────┘│
 #          Z sign ─────────────────────┘
 
+# The day's step count and the day it is for are kept in the PNVRAM (see
+# "PNVRAM protocol" in docs/wasp.rst), so a restart of the watch, such as a
+# firmware update, does not lose the steps
+_PNVRAM_STEPS = const(0x200039cc)
+_PNVRAM_DAY = const(0x200039d0)
+_DAY_MAGIC = const(0x57e90000)
+
 class BMA421:
     """BMA421 driver
 
@@ -35,6 +43,7 @@ class BMA421:
         """
         self._dev = bma42x.BMA42X(i2c)
         self._orientation = orientation
+        self._base = 0
 
     def reset(self):
         """Reset and reinitialize the sensor."""
@@ -54,17 +63,37 @@ class BMA421:
                                bandwidth=bma42x.ACCEL_NORMAL_AVG4,
                                perf_mode=bma42x.CIC_AVG_MODE)
         dev.feature_enable(bma42x.STEP_CNTR, True)
+        self._base = 0
+
+    def resume(self, day):
+        """Count on from the steps counted before the watch restarted.
+
+        The steps carry over only on the same day: on any other day the
+        count starts again from zero.
+
+        :param int day: Today, as days since the epoch.
+        """
+        if machine.mem32[_PNVRAM_DAY] == _DAY_MAGIC | day:
+            self._base = machine.mem32[_PNVRAM_STEPS] - \
+                         self._dev.step_counter_output()
+        else:
+            self.steps = 0
+            machine.mem32[_PNVRAM_DAY] = _DAY_MAGIC | day
 
     @property
     def steps(self):
         """Report the number of steps counted."""
-        return self._dev.step_counter_output()
+        steps = self._base + self._dev.step_counter_output()
+        machine.mem32[_PNVRAM_STEPS] = steps
+        return steps
 
     @steps.setter
     def steps(self, value):
         if value != 0:
             raise ValueError()
         self._dev.reset_step_counter()
+        self._base = 0
+        machine.mem32[_PNVRAM_STEPS] = 0
 
     def accel_xyz(self):
         """Return a triple with acceleration values"""

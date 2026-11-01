@@ -51,6 +51,9 @@ class Accelerometer:
     def steps(self, value):
         self.reset()
 
+    def resume(self, day):
+        pass
+
     def accel_xyz(self):
         # TODO randomly alter the values over time
         return (0,0,0)

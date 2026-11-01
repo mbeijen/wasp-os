@@ -107,8 +107,8 @@ Address    Description
 0x200039c0 Guard value. Must be set to 0x1abe11ed .
 0x200039c4 Course grained RTC value (bootloader must preserve but can ignore).
 0x200039c8 RTC millisecond counter (bootloader must increment this).
-0x200039cc Reserved
-0x200039d0 Reserved
+0x200039cc Step count of the day (application only).
+0x200039d0 Day of the step count, plus 0x57e90000 (application only).
 0x200039d4 Reserved
 0x200039d8 Reserved
 0x200039dc Guard value. Must be set to 0x10adab1e .

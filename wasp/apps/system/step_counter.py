@@ -9,7 +9,8 @@ Provide a daily step count.
     .. figure:: res/screenshots/StepCounterApp.png
         :width: 179
 
-The step counts automatically reset at midnight.
+The step counts automatically reset at midnight. They carry on after a
+restart of the watch, such as a firmware update, on the same day.
 """
 
 import wasp
@@ -47,8 +48,15 @@ class StepCounterApp():
 
     def __init__(self):
         watch.accel.reset()
+        watch.accel.resume(self._today())
         self._scroll = wasp.widgets.ScrollIndicator()
         self._wake = 0
+        # Reset at midnight even if the app is never opened
+        self.background()
+
+    @staticmethod
+    def _today():
+        return int(watch.rtc.time()) // (24 * 60 * 60)
 
     def foreground(self):
         """Cancel the alarm and draw the application.
@@ -81,7 +89,7 @@ class StepCounterApp():
 
     def _reset(self):
         """"Reset the step counter and re-arm the alarm."""
-        watch.accel.steps = 0
+        watch.accel.resume(self._today())
         self._wake += 24 * 60 * 60
         wasp.system.set_alarm(self._wake, self._reset)
 
