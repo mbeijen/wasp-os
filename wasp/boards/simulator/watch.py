@@ -225,6 +225,12 @@ def bluetooth(on=None):
         _bluetooth = bool(on)
     return _bluetooth
 
+off = False
+
+def power_off():
+    global off
+    off = True
+
 def connected():
     return _bluetooth and not (int(rtc.uptime / 30) & 1)
 

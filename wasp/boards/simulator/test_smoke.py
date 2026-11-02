@@ -239,3 +239,24 @@ def test_bluetooth_setting(system):
     assert(not wasp.watch.connected())
     settings.touch((wasp.EventType.TOUCH, 120, 114))
     assert(system.bluetooth is True)
+
+
+def test_low_battery(system):
+    """The watch switches off when the battery is low twice in a row."""
+    battery = wasp.watch.battery
+    voltage, powered = battery.voltage, battery.powered
+    mv = []
+    battery.voltage_mv = lambda: mv.pop(0)
+    battery.power = lambda: False
+    try:
+        mv.extend((3500, 3300, 3500, 3300, 3300))
+        for off in (False, False, False, False, True):
+            system._check_battery()
+            assert(wasp.watch.off is off)
+        assert(not mv)
+    finally:
+        del battery.voltage_mv, battery.power
+        battery.voltage, battery.powered = voltage, powered
+        wasp.watch.off = False
+        system._battery_low = False
+    system.wake()

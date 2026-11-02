@@ -20,6 +20,7 @@ import machine
 import micropython
 import steplogger
 import sys
+import time
 import watch
 import widgets
 import appregistry
@@ -88,6 +89,11 @@ class PinHandler():
 # system manager is still running.
 _alive = getattr(watch, 'alive', None)
 
+# Switching off before the battery runs flat, if the board can (see
+# System._check_battery)
+_power_off = getattr(watch, 'power_off', None)
+_POWER_OFF_MV = 3400
+
 def _key_app(d):
     """Get a sort key for apps."""
     return d.NAME
@@ -149,6 +155,8 @@ class Manager():
         self._nfylev_ms = self._nfylevels[self._notifylevel - 1]
         self._button = PinHandler(watch.button)
         self._charging = True
+        self._battery_at = 60
+        self._battery_low = False
         self._scheduled = False
         self._scheduling = False
 
@@ -490,6 +498,32 @@ class Manager():
 
         self.keep_awake()
 
+    def _check_battery(self):
+        """Switch the watch off before its battery runs flat.
+
+        A sensor that browns out can get stuck in a state that only
+        draining the battery completely clears, so below 3.4 V the watch
+        switches off, until it is put on its charger. The battery is
+        checked once a minute, and must be low twice in a row.
+        """
+        self._battery_at = watch.rtc.uptime + 60
+        battery = watch.battery
+        if battery.power() or battery.voltage_mv() >= _POWER_OFF_MV:
+            self._battery_low = False
+            return
+        if not self._battery_low:
+            self._battery_low = True
+            return
+
+        if self.sleep_at:
+            draw = watch.drawable
+            draw.fill()
+            draw.set_color(self.theme('bright'))
+            draw.string('Battery empty', 0, 96, width=240)
+            draw.string('Charge to start', 0, 128, width=240)
+            time.sleep_ms(3000)
+        _power_off()
+
     def _handle_button(self, state):
         """Process a button-press (or unpress) event.
         """
@@ -548,6 +582,8 @@ class Manager():
 
         rtc = watch.rtc
         update = rtc.update()
+        if update and _power_off and rtc.uptime >= self._battery_at:
+            self._check_battery()
 
         alarms = self._alarms
         if update and alarms:

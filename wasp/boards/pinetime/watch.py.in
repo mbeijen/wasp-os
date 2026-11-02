@@ -58,6 +58,7 @@ from drivers.nor_flash import NORFlash
 
 from waspnrf import uart_connected as connected
 from waspnrf import uart_advertise as bluetooth
+import waspnrf
 
 class Backlight(object):
     lo = Pin("BL_LO", Pin.OUT, value=0)
@@ -185,6 +186,22 @@ except BaseException as e:
                                    e.args[0] if e.args else ''),
                     0, 160, width=240)
 backlight.set(1)
+
+def power_off():
+    """Switch everything off, until the watch is put on its charger.
+
+    For when the battery is nearly flat: a sensor that browns out can get
+    stuck in a state that only draining the battery completely clears.
+    Waking up is a restart.
+    """
+    backlight.set(0)
+    vibrator.pin.value(vibrator.active_low)
+    for off in (display.poweroff, touch.sleep, hrs.disable, accel.suspend):
+        try:
+            off()
+        except Exception as e:
+            sys.print_exception(e)
+    waspnrf.power_off(Pin('USB_PWR', Pin.IN))
 
 gc.collect()
 free = gc.mem_free()

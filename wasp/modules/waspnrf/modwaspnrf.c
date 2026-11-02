@@ -17,6 +17,13 @@
 #include "hal/nrf_clock.h"
 #include "soc/nrfx_coredep.h"
 
+#include "pin.h"
+
+#if BLUETOOTH_SD
+#include "nrf_sdm.h"
+#include "nrf_soc.h"
+#endif
+
 #if MICROPY_PY_BLE_NUS
 #include "drivers/bluetooth/ble_uart.h"
 #endif
@@ -233,6 +240,39 @@ void wasp_enter_bootloader(void) {
     NVIC_SystemReset();
 }
 
+// --- power off ------------------------------------------------------------
+//
+// System OFF, the nRF52's deepest sleep, from which only a pin can wake it:
+// waking up is a reset. The section of RAM that holds the bootloader's
+// pnvram (the clock and the step count, at 0x200039c0) is kept, so the
+// clock goes on from the time it was switched off. All the other RAM is
+// lost.
+
+#define WASP_PNVRAM_RAM      (1)    // RAM[1].S1 is 0x20003000..0x20003fff
+
+static void MP_NORETURN wasp_power_off(uint32_t wake_pin) {
+    // Wake only on the given pin going low, not on pins that MicroPython
+    // set up to sense for interrupts
+    for (uint32_t pin = 0; pin < 32; pin++) {
+        nrf_gpio_cfg_sense_set(pin, NRF_GPIO_PIN_NOSENSE);
+    }
+    nrf_gpio_cfg_sense_input(wake_pin, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
+
+#if BLUETOOTH_SD
+    uint8_t sd_enabled = 0;
+    sd_softdevice_is_enabled(&sd_enabled);
+    if (sd_enabled) {
+        sd_power_ram_power_set(WASP_PNVRAM_RAM, POWER_RAM_POWER_S1RETENTION_Msk);
+        sd_power_system_off();
+    }
+#endif
+    NRF_POWER->RAM[WASP_PNVRAM_RAM].POWERSET = POWER_RAM_POWER_S1RETENTION_Msk;
+    NRF_POWER->SYSTEMOFF = 1;
+    for (;;) {
+        // In a debug session System OFF is only emulated
+    }
+}
+
 // --- waspnrf module -------------------------------------------------------
 
 // Without the BLE console these simply report "not connected" so that the
@@ -268,6 +308,13 @@ static mp_obj_t waspnrf_uart_advertise(size_t n_args, const mp_obj_t *args) {
 #endif
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(waspnrf_uart_advertise_obj, 0, 1, waspnrf_uart_advertise);
+
+// power_off(pin): switch the watch off until the pin goes low
+static mp_obj_t waspnrf_power_off(mp_obj_t pin) {
+    wasp_power_off(pin_find(pin)->pin);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(waspnrf_power_off_obj, waspnrf_power_off);
 
 static mp_obj_t waspnrf_alive(void) {
     wasp_wdt_last_alive = mp_hal_ticks_ms();
@@ -311,6 +358,7 @@ static const mp_rom_map_elem_t waspnrf_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_uart_enabled), MP_ROM_PTR(&waspnrf_uart_enabled_obj) },
     { MP_ROM_QSTR(MP_QSTR_uart_advertise), MP_ROM_PTR(&waspnrf_uart_advertise_obj) },
     { MP_ROM_QSTR(MP_QSTR_enter_ota_dfu), MP_ROM_PTR(&waspnrf_enter_ota_dfu_obj) },
+    { MP_ROM_QSTR(MP_QSTR_power_off), MP_ROM_PTR(&waspnrf_power_off_obj) },
     { MP_ROM_QSTR(MP_QSTR_alive), MP_ROM_PTR(&waspnrf_alive_obj) },
     { MP_ROM_QSTR(MP_QSTR_feed), MP_ROM_PTR(&waspnrf_feed_obj) },
     { MP_ROM_QSTR(MP_QSTR_hang_report), MP_ROM_PTR(&waspnrf_hang_report_obj) },

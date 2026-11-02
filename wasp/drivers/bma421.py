@@ -65,6 +65,13 @@ class BMA421:
         dev.feature_enable(bma42x.STEP_CNTR, True)
         self._base = 0
 
+    def suspend(self):
+        """Stop measuring, and counting steps, to save power.
+
+        :py:meth:`reset` starts it again.
+        """
+        self._dev.set_accel_enable(False)
+
     def resume(self, day):
         """Count on from the steps counted before the watch restarted.
 
