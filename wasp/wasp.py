@@ -227,7 +227,8 @@ class Manager():
     def save_settings(self, **changes):
         """Keep settings over a restart of the watch, such as an update.
 
-        The brightness, notification level and units are always saved.
+        The brightness, notification level, units and Bluetooth are
+        always saved.
         Applications pass any other settings as keywords. The settings
         file is only written when something changed.
         """
@@ -236,6 +237,7 @@ class Manager():
         settings['brightness'] = self._brightness
         settings['notify_level'] = self._notifylevel
         settings['units'] = self.units
+        settings['bluetooth'] = self.bluetooth
         if settings == self._settings:
             return
         try:
@@ -256,6 +258,7 @@ class Manager():
         self._brightness = settings.get('brightness', self._brightness)
         self.notify_level = settings.get('notify_level', self._notifylevel)
         self.units = settings.get('units', self.units)
+        self.bluetooth = settings.get('bluetooth', True)
 
         face = settings.get('face')
         if face and self.quick_ring:
@@ -291,6 +294,19 @@ class Manager():
     def brightness(self, value):
         self._brightness = value
         watch.backlight.set(self._brightness)
+
+    @property
+    def bluetooth(self):
+        """Whether phones and computers can find and connect to the watch.
+
+        Switching it off stops advertising and hangs up. The radio stays
+        on: firmware without it cannot write to flash.
+        """
+        return watch.bluetooth()
+
+    @bluetooth.setter
+    def bluetooth(self, value):
+        watch.bluetooth(value)
 
     @property
     def notify_level(self):

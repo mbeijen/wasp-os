@@ -202,14 +202,17 @@ def test_settings_restored(system):
     module, label = wasp.appregistry.faces_list[-1]
     system.brightness = 1
     system.units = 'Imperial'
+    system.bluetooth = False
     system.save_settings(face='{}.{}App'.format(module, label),
                          apps=['apps.user.calculator.CalculatorApp'])
 
     system.brightness = 3
     system.units = 'Metric'
+    system.bluetooth = True
     system._load_settings()
     assert(system.brightness == 1)
     assert(system.units == 'Imperial')
+    assert(system.bluetooth is False)
     assert(type(system.quick_ring[0]).__name__ == label + 'App')
     names = [type(app).__name__ for app in system.launcher_ring]
     assert('CalculatorApp' in names)
@@ -219,4 +222,20 @@ def test_settings_restored(system):
     system._settings = {}
     system.brightness = 2
     system.units = 'Metric'
+    system.bluetooth = True
     system.quick_ring[0] = face
+
+
+def test_bluetooth_setting(system):
+    """The Bluetooth page of Settings switches it off and on again."""
+    system.switch(system.apps['Settings'])
+    settings = system.app
+    while settings._current_setting != 'Bluetooth':
+        system.step()
+        settings.swipe((wasp.EventType.UP, 120, 120))
+    # The Change button
+    settings.touch((wasp.EventType.TOUCH, 120, 114))
+    assert(system.bluetooth is False)
+    assert(not wasp.watch.connected())
+    settings.touch((wasp.EventType.TOUCH, 120, 114))
+    assert(system.bluetooth is True)
