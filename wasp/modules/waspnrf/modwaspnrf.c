@@ -73,9 +73,16 @@ static void wasp_wdt_feed(void) {
 // waspnrf.hang_report().
 //
 // A fault that keeps recurring is recorded at the faulting instruction,
-// since the port's HardFault_Handler returns to it. A watchdog reset without
-// a record means that the interrupt could not run: the CPU was stuck in an
-// interrupt of the same or higher priority.
+// since the port's HardFault_Handler returns to it. A fatal error is
+// recorded where __fatal_error() was called from, with an xPSR of 0. A
+// watchdog reset without a record means that the interrupt could not run:
+// the CPU was stuck in an interrupt of the same or higher priority.
+//
+// After a watchdog reset the bootloader waits in recovery mode for an update
+// for as long as the battery lasts, and the heart rate sensor stays on if it
+// was: only wasp-os switches it off. So unless the button is held down,
+// which asks for recovery mode, the watch restarts itself instead. That is
+// not a watchdog reset, so the bootloader starts wasp-os again.
 
 #define WASP_HANG_MAGIC      (0x484e4157)   // "WANH"
 
@@ -90,18 +97,37 @@ typedef struct {
 extern uint32_t _heap_end;
 #define wasp_hang ((volatile wasp_hang_t *)&_heap_end)
 
-// Not static, so that the name in WDT_IRQHandler survives LTO
-__attribute__((used)) void wasp_wdt_timeout(const uint32_t *frame) {
-    // The exception frame: r0-r3, r12, lr, pc, xpsr
-    wasp_hang->pc = frame[6];
-    wasp_hang->lr = frame[5];
-    wasp_hang->xpsr = frame[7];
+static void wasp_hang_record(uint32_t pc, uint32_t lr, uint32_t xpsr) {
+    wasp_hang->pc = pc;
+    wasp_hang->lr = lr;
+    wasp_hang->xpsr = xpsr;
     wasp_hang->since_alive = wasp_wdt_armed ?
         mp_hal_ticks_ms() - wasp_wdt_last_alive : 0;
     wasp_hang->magic = WASP_HANG_MAGIC;
-    for (;;) {
-        // The reset follows
+}
+
+static void MP_NORETURN wasp_hang_restart(void) {
+    if (!nrf_gpio_pin_read(WASP_WDT_BUTTON)) {
+        NVIC_SystemReset();
     }
+    for (;;) {
+        // The watchdog reset into recovery mode follows
+    }
+}
+
+// Not static, so that the name in WDT_IRQHandler survives LTO
+__attribute__((used)) void wasp_wdt_timeout(const uint32_t *frame) {
+    // The exception frame: r0-r3, r12, lr, pc, xpsr
+    wasp_hang_record(frame[6], frame[5], frame[7]);
+    wasp_hang_restart();
+}
+
+// The port's own version is an endless loop, which the watchdog only ends
+// after five seconds, in recovery mode
+void MP_NORETURN __fatal_error(const char *msg) {
+    (void)msg;
+    wasp_hang_record((uint32_t)__builtin_return_address(0), 0, 0);
+    wasp_hang_restart();
 }
 
 __attribute__((naked)) void WDT_IRQHandler(void) {

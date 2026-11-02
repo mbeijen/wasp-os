@@ -184,9 +184,8 @@ seconds. Key points for application robustness include:
    the dog after a fatal error or a hang, and the watch stays dead until
    the button is held down. On the PineTime the dog is petted from the
    RTC interrupt, the system manager calls ``watch.alive()`` on every
-   tick, and petting stops if that has not happened for five seconds. The watchdog then resets the
-   watch into recovery mode, from where a button press returns to the
-   application.
+   tick, and petting stops if that has not happened for five seconds. The watch
+   then restarts, as described below.
 
 To avoid mistakes the application should contain no subroutines that
 unconditionally pet the dog; they should all implement #2 to #4 from
@@ -198,6 +197,14 @@ the reset, saves the program counter, link register and xPSR of the code
 it interrupted, together with the time since the last ``alive()``, in RAM
 that survives the reset. After the next boot ``watch.last_hang`` holds
 them as a tuple ``(pc, lr, xpsr, ms)``, or ``None`` if there was no hang.
+A fatal error in MicroPython is recorded too, at the code that reported
+it, with an ``xpsr`` of 0.
+
+Recovery mode waits for an update for as long as the battery lasts, and
+only wasp-os switches the heart rate sensor off. So after a hang or a fatal
+error the PineTime restarts itself rather than leave the reset to the
+watchdog, and the bootloader starts wasp-os again. Only when the button is
+held down does the watchdog reset it into recovery mode.
 Look the addresses up in the firmware's ELF file, for example with
 ``arm-none-eabi-addr2line -f -e firmware.elf <pc>``; the low 9 bits of the
 xPSR give the exception that was running (0 means none, 16 and up are

@@ -95,8 +95,12 @@ async def cmd_info(args):
     hang = facts.get('last_hang')
     if hang:
         pc, lr, xpsr, ms = hang
-        where = 'not in an interrupt' if xpsr & 0x1ff == 0 else \
-                f'in exception {xpsr & 0x1ff}'
+        if xpsr == 0:
+            where = 'a fatal error'
+        elif xpsr & 0x1ff == 0:
+            where = 'not in an interrupt'
+        else:
+            where = f'in exception {xpsr & 0x1ff}'
         rows += (('Last hang', f'pc {pc:#x}, lr {lr:#x}, {where}, '
                                f'{ms} ms after the last alive()'),)
     for label, value in rows:
